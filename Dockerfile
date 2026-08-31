@@ -17,5 +17,17 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon \
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 COPY --from=builder /workspace/app.jar app.jar
+
+# Runs as an unprivileged user. A process that never needs to write outside its own heap has no
+# reason to hold root inside the container — if the application is ever compromised, the blast
+# radius stops at a user that owns nothing.
+RUN useradd --system --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# MaxRAMPercentage instead of a fixed -Xmx: the JVM sizes its heap from the container's memory
+# limit, so the same image behaves correctly whether it is given 512MB locally or 4GB in
+# production, with no rebuild and no environment-specific flag.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

@@ -8,14 +8,26 @@ services:
     environment:
       DYNAMODB_ENDPOINT: http://dynamodb:8000
       DYNAMODB_REGION: us-east-1
-      GREETING_TABLE_NAME: GreetingMessages
+      BALANCE_TABLE_NAME: AccountBalances
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
-      GREETING_TEMPLATES_TOPIC: greeting-templates
+      TRANSACTIONS_TOPIC: transacoes-financeiras-processadas
+      TRANSACTIONS_TOPIC_PARTITIONS: "3"
     depends_on:
       - dynamodb
       - dynamodb-seed
       - redpanda
       - redpanda-seed
+    healthcheck:
+      # A TCP probe rather than an HTTP call to /actuator/health: the JRE image ships no curl,
+      # and adding one just to reach the endpoint would grow the runtime image for a check that
+      # only matters locally. In a real deployment the readiness and liveness probes hit
+      # /actuator/health/readiness and /actuator/health/liveness over HTTP — those endpoints
+      # are already enabled in application.yaml.
+      test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080'"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 40s
 
   dynamodb:
     image: amazon/dynamodb-local:3.3.0
@@ -33,7 +45,7 @@ services:
       AWS_SECRET_ACCESS_KEY: local
       AWS_DEFAULT_REGION: us-east-1
       DYNAMODB_ENDPOINT_URL: http://dynamodb:8000
-      GREETING_TABLE_NAME: GreetingMessages
+      BALANCE_TABLE_NAME: AccountBalances
     volumes:
       - ./infra/dynamodb:/dynamodb-seed:ro
     entrypoint: ["/bin/bash", "/dynamodb-seed/seed.sh"]
@@ -74,7 +86,8 @@ services:
       - redpanda
     environment:
       REDPANDA_BROKERS: redpanda:9092
-      GREETING_TEMPLATES_TOPIC: greeting-templates
+      TRANSACTIONS_TOPIC: transacoes-financeiras-processadas
+      TRANSACTIONS_TOPIC_PARTITIONS: "3"
     volumes:
       - ./infra/redpanda:/redpanda-seed:ro
     entrypoint: ["/bin/bash", "-c", "/redpanda-seed/config.sh && /redpanda-seed/seed.sh"]

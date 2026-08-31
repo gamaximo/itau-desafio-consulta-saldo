@@ -1,0 +1,20 @@
+### Balance of a known account.
+### Replace {{accountId}} in http-client.env.json with an account printed by
+### `make kafka-produce-scenario TOPIC=transacoes-financeiras-processadas`.
+GET {{host}}/balances/{{accountId}}
+Accept: application/json
+
+### Malformed identifier — expects 400 with application/problem+json.
+GET {{host}}/balances/not-a-uuid
+Accept: application/json
+
+### Well-formed identifier that was never seen — expects 404.
+GET {{host}}/balances/00000000-0000-0000-0000-000000000000
+Accept: application/json
+
+### Liveness and readiness probes.
+GET {{host}}/actuator/health
+Accept: application/json
+
+### Business metrics, including balance.transactions.processed by outcome.
+GET {{host}}/actuator/prometheus

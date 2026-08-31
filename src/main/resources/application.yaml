@@ -1,18 +1,62 @@
 spring:
   application:
-    name: itau-code-challange-starter-kit
+    name: itau-balance-query-api
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID:hello-greeting-template-consumer}
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:balance-transaction-consumer}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    # The producer exists only to publish rejected events to the dead letter topic.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      # One consumer thread per partition. Going above the partition count buys nothing —
+      # the extra threads would sit idle, since a partition is assigned to a single consumer
+      # in the group at a time.
+      concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}
 
 dynamodb:
   endpoint: ${DYNAMODB_ENDPOINT:http://localhost:8000}
   region: ${DYNAMODB_REGION:us-east-1}
-  table-name: ${GREETING_TABLE_NAME:GreetingMessages}
+  table-name: ${BALANCE_TABLE_NAME:AccountBalances}
+  # Bounds a single HTTP attempt against DynamoDB.
+  api-call-attempt-timeout-ms: ${DYNAMODB_API_CALL_ATTEMPT_TIMEOUT_MS:1000}
+  # Bounds the whole call, retries included. Must stay comfortably above the attempt timeout,
+  # otherwise the SDK's retries would be cut off before they ever run.
+  api-call-timeout-ms: ${DYNAMODB_API_CALL_TIMEOUT_MS:3000}
 
-greeting-templates:
-  topic-name: ${GREETING_TEMPLATES_TOPIC:greeting-templates}
+transactions:
+  topic-name: ${TRANSACTIONS_TOPIC:transacoes-financeiras-processadas}
+  # Three partitions: enough to parallelise ingestion across consumer threads, small enough to
+  # stay readable locally. Correctness does not depend on this number — ordering is resolved by
+  # the version comparison on write, not by partition assignment.
+  partitions: ${TRANSACTIONS_TOPIC_PARTITIONS:3}
+
+balance:
+  # Whether a DECLINED transaction updates the stored balance. See ProcessTransactionService
+  # for the full rationale behind the default.
+  apply-declined-transactions: ${APPLY_DECLINED_TRANSACTIONS:true}
+
+api:
+  # Time zone used to render `updated_at` in the response. The instant itself is stored in UTC;
+  # only the presentation offset comes from here.
+  time-zone: ${API_TIME_ZONE:America/Sao_Paulo}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # Liveness and readiness are separate probes on purpose: a container that lost DynamoDB
+      # should stop receiving traffic (not ready) without being killed and restarted (still
+      # alive), since restarting fixes nothing when the dependency is the problem.
+      probes:
+        enabled: true
+      # Full detail is exposed because this stack has no authentication in front of it. In a
+      # real deployment this belongs behind `when-authorized`.
+      show-details: always
