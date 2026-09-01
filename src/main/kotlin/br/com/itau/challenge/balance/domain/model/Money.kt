@@ -5,6 +5,9 @@ import java.math.BigDecimal
 import java.math.RoundingMode
 import java.util.Currency
 
+/** Limite de dígitos significativos que o DynamoDB aceita num atributo numérico. */
+private const val MAX_SIGNIFICANT_DIGITS = 38
+
 /**
  * Um valor monetário e sua moeda, normalizado para a escala da própria moeda.
  *
@@ -33,13 +36,26 @@ class Money(
     val amount: BigDecimal
 
     init {
+        // O DynamoDB rejeita números com mais de 38 dígitos significativos. Sem esta validação, um
+        // valor absurdo atravessa domínio e caso de uso e só falha na escrita — e falha como
+        // `SdkException`, que o adaptador classifica como transitória. O resultado seria quatro
+        // tentativas com backoff para um erro que nunca vai melhorar, antes de o evento chegar ao
+        // dead letter topic. Rejeitar aqui transforma isso numa recusa imediata e com mensagem
+        // clara.
+        if (amount.precision() > MAX_SIGNIFICANT_DIGITS) {
+            throw InvalidTransactionEventException(
+                "O valor tem ${amount.precision()} dígitos significativos, acima do limite de " +
+                    "$MAX_SIGNIFICANT_DIGITS suportado pelo armazenamento",
+            )
+        }
+
         val isoCurrency =
             try {
                 Currency.getInstance(currency)
             } catch (_: IllegalArgumentException) {
                 throw InvalidTransactionEventException("A moeda precisa ser um código ISO 4217, recebido '$currency'")
             } catch (_: NullPointerException) {
-                throw InvalidTransactionEventException("Currency must be an ISO 4217 code, got '$currency'")
+                throw InvalidTransactionEventException("A moeda precisa ser um código ISO 4217, recebido '$currency'")
             }
 
         // Os dígitos fracionários vêm da própria moeda, e não de um 2 fixo no código, porque a

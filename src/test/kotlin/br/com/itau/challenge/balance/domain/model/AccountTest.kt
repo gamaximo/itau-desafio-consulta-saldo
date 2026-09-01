@@ -3,9 +3,11 @@ package br.com.itau.challenge.balance.domain.model
 import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventException
 import br.com.itau.challenge.balance.fixture.ACCOUNT_ID
 import br.com.itau.challenge.balance.fixture.account
+import br.com.itau.challenge.balance.fixture.ACCOUNT_CREATED_AT
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class AccountTest {
@@ -45,5 +47,21 @@ class AccountTest {
     @Test
     fun `aceita uma conta desabilitada`() {
         assertEquals(AccountStatus.DISABLED, account(status = AccountStatus.DISABLED).status)
+    }
+
+    @Test
+    fun `distingue contas diferentes e reconhece a si mesma`() {
+        val conta = account()
+
+        assertEquals(conta, conta)
+        assertNotEquals(conta, account(createdAt = ACCOUNT_CREATED_AT + 1))
+        assertNotEquals(conta, account(status = AccountStatus.DISABLED))
+        assertNotEquals<Any?>(conta, "não é uma conta")
+        assertNotEquals<Any?>(conta, null)
+    }
+
+    @Test
+    fun `tem um toString legível para os logs`() {
+        assertTrue(account().toString().contains(ACCOUNT_ID))
     }
 }
