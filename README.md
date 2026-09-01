@@ -273,10 +273,24 @@ sistemas, então o erro precisa ser tão legível por máquina quanto o sucesso:
 | Saldo não projetado | `404` | não adianta retentar |
 | `accountId` não é UUID | `400` | rejeitado pelo framework, antes de qualquer chamada ao banco |
 | Banco indisponível | `503` | **não 500**: sinaliza ao chamador que retentar é a resposta certa, em vez de acionar um humano para investigar este serviço |
+| Falha inesperada | `500` | contrato mesmo no caso que ninguém previu, com mensagem neutra |
+| Rota inexistente, método não suportado | `404` / `405` | tratados pelo Spring MVC, mas **no mesmo formato** |
+
+O contrato vale para a API inteira, e não só para os caminhos antecipados. Sem
+`spring.mvc.problemdetails.enabled`, as exceções tratadas pelo próprio Spring sairiam no formato
+legado `{"timestamp","status","error","path"}` — a API falaria dois dialetos de erro, e um
+consumidor com parser de RFC 7807 quebraria ao errar a URL.
+
+Isso exige dois advices com ordens opostas, e a razão é sutil: os handlers específicos precisam de
+`HIGHEST_PRECEDENCE` para vencer o handler do Spring em `MethodArgumentTypeMismatchException`,
+enquanto o catch-all `Exception` precisa de `LOWEST_PRECEDENCE` — com precedência alta ele
+capturaria as exceções do próprio framework e transformaria um `405` em `500`. `ErrorContractTest`
+verifica as duas pontas.
 
 Detalhes internos nunca atravessam essa fronteira — stack trace e mensagem da AWS vão para o
 log, e o chamador recebe uma mensagem estável e neutra. Vazá-los entregaria topologia de
-infraestrutura a quem chama o endpoint.
+infraestrutura a quem chama o endpoint; há teste garantindo que host interno, credencial e nome
+de classe não aparecem no corpo de um `500`.
 
 A exceção `AccountBalanceStorageException` é declarada na **porta**, não no domínio: 
 indisponibilidade é propriedade do contrato entre o núcleo e o mundo externo, não regra de

@@ -3,6 +3,8 @@ package br.com.itau.challenge.balance.adapter.input.web
 import br.com.itau.challenge.balance.domain.exception.AccountBalanceNotFoundException
 import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.slf4j.LoggerFactory
+import org.springframework.core.Ordered
+import org.springframework.core.annotation.Order
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -21,6 +23,13 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
  * topologia da infraestrutura para quem chama o endpoint. Esses vão para os logs, que é o lugar
  * deles, e quem chama recebe uma mensagem estável e neutra.
  */
+/**
+ * Precedência máxima porque o Spring MVC também trata algumas destas exceções quando
+ * `spring.mvc.problemdetails` está ligado — `MethodArgumentTypeMismatchException` entre elas.
+ * Sem esta ordenação, o handler genérico do framework venceria e o cliente receberia uma
+ * mensagem sobre conversão de tipo em vez de "o identificador precisa ser um UUID válido".
+ */
+@Order(Ordered.HIGHEST_PRECEDENCE)
 @RestControllerAdvice
 class BalanceExceptionHandler {
 

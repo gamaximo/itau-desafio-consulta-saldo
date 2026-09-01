@@ -1,6 +1,14 @@
 spring:
   application:
     name: itau-balance-query-api
+  mvc:
+    problemdetails:
+      # Faz o próprio Spring MVC responder em RFC 7807 nas exceções que ele trata sozinho —
+      # rota inexistente, método não suportado, media type inválido. Sem isto, a API fala dois
+      # dialetos de erro: `application/problem+json` nos casos que tratamos e o formato legado
+      # `{"timestamp","status","error","path"}` em todo o resto. Um consumidor com parser de
+      # problem+json quebraria ao errar a URL.
+      enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     consumer:
