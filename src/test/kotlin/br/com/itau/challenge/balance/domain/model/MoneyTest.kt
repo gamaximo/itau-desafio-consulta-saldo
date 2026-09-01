@@ -69,7 +69,7 @@ class MoneyTest {
     fun `rejeita um valor mais preciso do que a moeda permite`() {
         val exception = assertFailsWith<InvalidTransactionEventException> { money(amount = "1.234") }
 
-        assertTrue(exception.message!!.contains("precision"))
+        assertTrue(exception.message!!.contains("precisão"))
     }
 
     /**

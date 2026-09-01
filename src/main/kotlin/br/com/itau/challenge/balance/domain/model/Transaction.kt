@@ -22,7 +22,7 @@ data class Transaction(
         requireUuid(id, "transaction.id")
         requirePositiveTimestamp(timestamp, "transaction.timestamp")
         if (amount.amount < BigDecimal.ZERO) {
-            throw InvalidTransactionEventException("transaction.amount must not be negative, got ${amount.amount}")
+            throw InvalidTransactionEventException("transaction.amount não pode ser negativo, recebido ${amount.amount}")
         }
     }
 }

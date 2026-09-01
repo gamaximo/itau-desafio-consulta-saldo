@@ -49,4 +49,4 @@ internal fun TransactionEventMessage.toDomain(): ProcessedTransaction {
 }
 
 private fun <T : Any> T?.required(field: String): T =
-    this ?: throw InvalidTransactionEventException("$field is required")
+    this ?: throw InvalidTransactionEventException("$field é obrigatório")
