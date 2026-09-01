@@ -75,7 +75,7 @@ class DynamoDbAccountBalanceRepository(
             false
         } catch (exception: SdkException) {
             throw AccountBalanceStorageException(
-                "Failed to store balance for account '${accountBalance.accountId}'",
+                "Falha ao gravar o saldo da conta '${accountBalance.accountId}'",
                 exception,
             )
         }

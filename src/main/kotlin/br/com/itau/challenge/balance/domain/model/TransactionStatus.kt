@@ -11,7 +11,7 @@ enum class TransactionStatus {
         fun from(raw: String): TransactionStatus =
             entries.firstOrNull { it.name == raw }
                 ?: throw InvalidTransactionEventException(
-                    "Unknown transaction status '$raw', expected one of ${entries.joinToString()}",
+                    "Status de transação desconhecido '$raw', esperado um de ${entries.joinToString()}",
                 )
     }
 }

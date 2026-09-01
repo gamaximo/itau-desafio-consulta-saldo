@@ -7,4 +7,4 @@ package br.com.itau.challenge.balance.domain.exception
  */
 class AccountBalanceNotFoundException(
     val accountId: String,
-) : RuntimeException("No balance found for account '$accountId'")
+) : RuntimeException("Nenhum saldo encontrado para a conta '$accountId'")
