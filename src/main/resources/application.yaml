@@ -1,6 +1,15 @@
 spring:
   application:
     name: itau-balance-query-api
+  lifecycle:
+    # Ao receber SIGTERM — deploy, escala, reciclagem de pod — o Tomcat para de aceitar novas
+    # conexões e espera as requisições em voo terminarem, e o container do Kafka termina o lote
+    # que está processando antes de commitar o offset. Sem isto (o padrão do Boot é `immediate`),
+    # todo deploy devolve erro a quem estava sendo atendido naquele instante.
+    #
+    # 20s é folgado para o nosso perfil: a requisição mais lenta é limitada pelo apiCallTimeout do
+    # DynamoDB (3s) e o lote do Kafka pelo backoff de retry (~3,5s).
+    timeout-per-shutdown-phase: 20s
   mvc:
     problemdetails:
       # Faz o próprio Spring MVC responder em RFC 7807 nas exceções que ele trata sozinho —
@@ -54,6 +63,19 @@ api:
   # UTC; daqui vem apenas o offset de apresentação.
   time-zone: ${API_TIME_ZONE:America/Sao_Paulo}
 
+server:
+  # Ver `spring.lifecycle.timeout-per-shutdown-phase` para o racional.
+  shutdown: graceful
+
+logging:
+  structured:
+    format:
+      # Logs em JSON no formato Elastic Common Schema, para que `accountId` e `transaction` sejam
+      # campos pesquisáveis no agregador em vez de texto solto dentro de uma mensagem. Fica atrás
+      # de uma variável de ambiente com padrão vazio: em desenvolvimento o console continua legível
+      # por humanos, e o docker-compose liga o formato estruturado, como seria em produção.
+      console: ${LOG_FORMAT:}
+
 management:
   endpoints:
     web:
@@ -69,3 +91,14 @@ management:
       # O detalhamento completo fica exposto porque esta stack não tem autenticação na frente. Num
       # ambiente real isto ficaria em `when-authorized`.
       show-details: always
+      group:
+        # `dynamoDb` entra apenas na readiness. É o que faz a promessa acima valer: sem incluí-lo
+        # aqui, o indicador existiria mas a probe continuaria respondendo UP com o banco fora,
+        # porque o grupo readiness só considera o estado interno da aplicação.
+        readiness:
+          include: readinessState,dynamoDb
+        # A liveness permanece sem dependências externas, de propósito: se ela caísse junto com o
+        # DynamoDB, o orquestrador entraria em ciclo de reinício durante uma indisponibilidade do
+        # banco — trocando um problema por dois.
+        liveness:
+          include: livenessState

@@ -314,9 +314,26 @@ Os contadores são registrados **na inicialização**, não na primeira ocorrên
 aparece depois do primeiro evento é uma armadilha para alertas, já que "taxa zero" e "série não
 existe" são condições diferentes.
 
-Health com probes de liveness e readiness separadas: um contêiner que perdeu o DynamoDB deve
-parar de receber tráfego (not ready) sem ser morto e reiniciado (still alive) — reiniciar não
-conserta nada quando o problema é a dependência.
+Health com probes de liveness e readiness separadas, e a separação tem consequência real: um
+`HealthIndicator` verifica a tabela do DynamoDB e entra **apenas** no grupo de readiness. Um
+contêiner que perdeu o banco para de receber tráfego (not ready) sem ser morto e reiniciado
+(still alive) — reiniciar não conserta nada quando o problema é a dependência, e a liveness caindo
+junto colocaria o orquestrador em ciclo de reinício durante a indisponibilidade.
+
+A verificação usa `DescribeTable`, não uma leitura de item: confere conectividade, credenciais e
+existência da tabela sem consumir capacidade de leitura numa probe que roda de segundos em
+segundos, para sempre. `HealthProbesTest` fixa a composição dos dois grupos, que é fácil de
+quebrar sem ninguém notar — no dia a dia tudo responde `UP` de qualquer jeito.
+
+**Graceful shutdown** ligado (`server.shutdown: graceful`): ao receber SIGTERM, o Tomcat para de
+aceitar conexões e espera as requisições em voo, e o consumidor termina o lote antes de commitar o
+offset. Sem isso — o padrão do Boot é `immediate` — todo deploy devolve erro a quem estava sendo
+atendido naquele instante.
+
+**Logs estruturados** em JSON (Elastic Common Schema) quando `LOG_FORMAT=ecs`, como o
+docker-compose define. Assim `accountId` e `transaction` viram campos pesquisáveis no agregador em
+vez de texto solto dentro de uma mensagem. Rodando pela IDE, o padrão continua sendo o formato
+legível por humanos.
 
 ## O que não foi implementado, e por quê
 
