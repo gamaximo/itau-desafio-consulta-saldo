@@ -78,14 +78,89 @@ Tabela `AccountBalances`, **um item por conta**:
 
 **Sem sort key e sem índice secundário**, e isso é deliberado. O único padrão de acesso do
 serviço é "o saldo atual desta conta", que uma partition key responde com um `GetItem` de
-milissegundos. Uma sort key só faria sentido para manter histórico de saldos por conta — outro
-requisito, com outro custo, que transformaria a leitura em "buscar vários e escolher o maior".
-Em DynamoDB a modelagem segue os padrões de acesso; adicionar um GSI "por precaução" custa
-escrita e armazenamento em toda ingestão para servir uma consulta que ninguém faz.
+milissegundos. Em DynamoDB a modelagem segue os padrões de acesso, não as entidades — o
+contrário de um banco relacional, onde se normaliza primeiro e consulta depois.
 
 `updatedAt` é denormalização consciente: existe para quem abrir o item num console ou numa
 consulta de suporte ver uma data em vez de um inteiro de 16 dígitos. Como nunca é lido de volta,
 não pode divergir de `version`, que continua sendo a única fonte de verdade da ordenação.
+
+#### Sort key: só com histórico como requisito
+
+Uma sort key faria sentido para manter **histórico** de saldos por conta. Com `accountId` (PK) +
+`version` (SK), cada evento passaria a ter uma chave distinta, nada seria sobrescrito e a conta
+acumularia um item por transação.
+
+O efeito colateral interessante é que o problema de ordenação **mudaria de lugar**, não
+desapareceria: sem sobrescrita não há o que proteger na escrita, e a leitura é que passaria a
+resolver a ordem, com `Query(ScanIndexForward=false, Limit=1)`. Trocaríamos a operação mais
+barata do DynamoDB por uma mais cara no caminho crítico da API, e a tabela cresceria
+indefinidamente, exigindo TTL ou arquivamento.
+
+Se histórico e leitura barata fossem exigidos ao mesmo tempo, há dois desenhos possíveis.
+
+O **híbrido na mesma tabela**: itens `v#<version>` para o histórico e um item `CURRENT` para o
+saldo vigente, escritos juntos num `TransactWriteItems`. A leitura da API volta a ser um `GetItem`
+de chave fixa, e o `CURRENT` passa a precisar exatamente da escrita condicional descrita na
+[decisão 3](#3-concorrência-e-ordenação-uma-condição-resolve-três-problemas), porque só ele
+sofre sobrescrita.
+
+A **tabela separada**, que é provavelmente o desenho melhor. `AccountBalances` continua pequena,
+quente e com um item por conta; `AccountBalanceHistory` cresce isolada, com TTL, capacidade e
+perfil de acesso próprios. As vantagens são de operação, não de modelagem: uma varredura analítica
+sobre o histórico não consome capacidade da tabela que atende a API, o TTL do histórico não
+arrisca apagar o saldo vigente por engano, e as duas escalam de forma independente. O preço é
+perder a atomicidade entre as duas escritas — mas isso não custa nada aqui, porque cada evento é
+um snapshot autossuficiente e a projeção é idempotente, então o histórico pode ser preenchido de
+forma assíncrona e eventualmente consistente sem afetar a corretude do saldo.
+
+Essa tabela seria alimentada por DynamoDB Streams ou, melhor ainda, por um **consumidor
+independente do mesmo tópico** — o que na prática significa outro serviço, com outro dono e outro
+ciclo de vida, em vez de mais responsabilidade neste.
+
+Nada disso foi feito porque o histórico **já existe na fonte**: o Kafka retém os eventos, e a
+projeção é determinística, então uma tabela de histórico pode ser construída a qualquer momento
+reprocessando o tópico do offset zero. Materializá-la aqui seria pagar escrita e armazenamento em
+toda ingestão para responder a uma pergunta que este serviço não recebe.
+
+#### GSI: o único candidato seria `owner`, e ele tem um defeito semântico
+
+Investigações de suporte costumam partir do cliente, não da conta — o `accountId` raramente está à
+mão. Um GSI por `owner` responderia "quais contas são deste titular".
+
+Foi descartado por um motivo que precede o custo: **este serviço só conhece contas que já
+transacionaram**. Uma conta recém-aberta não existe nesta tabela, então o índice responderia
+"estas duas" quando o cliente tem três — e nada na resposta indicaria que ela está incompleta. Uma
+resposta parcial que se apresenta como completa é pior que resposta nenhuma, porque quem consulta
+age sobre ela. Essa pergunta pertence ao cadastro de contas, onde a resposta é completa por
+construção. Para o caso concreto de investigação, incluir o `owner` nos logs de ingestão — que já
+são emitidos — resolve mais barato que qualquer índice.
+
+Se o requisito aparecer, o desenho seria:
+
+```
+GSI OwnerAccountsIndex — PK: owner, projeção: KEYS_ONLY
+```
+
+`KEYS_ONLY` importa mais do que parece. O DynamoDB só cobra escrita no índice quando a **entrada
+do índice muda**; como aqui só o saldo varia entre um evento e outro, e `owner`/`accountId`
+permanecem idênticos, o índice seria escrito **uma vez por conta** — na primeira transação dela —
+e ficaria inerte nas milhares seguintes. Com `ALL`, o `balanceAmount` estaria projetado e toda
+ingestão pagaria escrita dobrada, 24/7. A projeção não pode ser alterada depois: mudá-la exige
+recriar o índice.
+
+Mesmo com o índice, o saldo continuaria vindo da tabela base: o `Query` no GSI serviria para
+descobrir os `accountId`s, e cada saldo sairia de um `GetItem`, porque **GSI nunca oferece leitura
+fortemente consistente** — a garantia da [decisão 6](#6-leitura-fortemente-consistente) não
+sobreviveria a ser servida pelo índice.
+
+Os demais atributos não são candidatos. `lastTransactionId` guarda apenas a última transação, então
+um índice sobre ele só encontraria a transação caso ela ainda fosse a mais recente da conta —
+achando às vezes, sem que o consultante saiba em qual dos dois casos está. `balanceCurrency` teria
+cardinalidade próxima de 1 e concentraria todos os itens numa única partição. `updatedAt` como
+partition key criaria partição quente por período. E perguntas sobre faixas de saldo ou contas
+inativas são analíticas: o caminho para elas é DynamoDB Streams para um destino analítico, nunca um
+índice na tabela transacional.
 
 ### 3. Concorrência e ordenação: uma condição resolve três problemas
 
