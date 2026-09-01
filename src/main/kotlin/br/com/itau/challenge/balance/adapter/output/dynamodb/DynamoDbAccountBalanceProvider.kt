@@ -40,7 +40,7 @@ class DynamoDbAccountBalanceProvider(
                 dynamoDbClient.getItem(request)
             } catch (exception: SdkException) {
                 throw AccountBalanceStorageException(
-                    "Failed to read balance for account '$accountId'",
+                    "Falha ao ler o saldo da conta '$accountId'",
                     exception,
                 )
             }

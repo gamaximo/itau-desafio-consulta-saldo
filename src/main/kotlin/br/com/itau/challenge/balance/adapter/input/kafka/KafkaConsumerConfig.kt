@@ -37,13 +37,30 @@ internal fun deadLetterDestinationFor(
     exception: Exception,
 ): TopicPartition {
     deadLetterLogger.error(
-        "Dead-lettering unprocessable event: topic={} partition={} offset={} reason={}",
+        "Evento inprocessável enviado ao dead letter topic: tópico={} partição={} offset={} motivo={}",
         record.topic(),
         record.partition(),
         record.offset(),
-        exception.message,
+        rootCauseOf(exception),
     )
     return TopicPartition(record.topic() + DEAD_LETTER_SUFFIX, ANY_PARTITION)
+}
+
+/**
+ * A mensagem da causa mais profunda, e não a do wrapper.
+ *
+ * O Spring Kafka envolve a falha numa `ListenerExecutionFailedException`, cuja mensagem diz
+ * apenas qual método lançou a exceção — algo que já se sabe. A informação que resolve o problema
+ * ("Unknown transaction type 'TRANSFER'") está na causa aninhada. Quem abre este log às três da
+ * manhã precisa do porquê, não da assinatura do listener.
+ */
+private fun rootCauseOf(exception: Throwable): String? {
+    var causa: Throwable = exception
+    // `cause !== causa` evita laço infinito numa exceção que aponte para si mesma como causa.
+    while (causa.cause != null && causa.cause !== causa) {
+        causa = causa.cause!!
+    }
+    return causa.message
 }
 
 @Configuration

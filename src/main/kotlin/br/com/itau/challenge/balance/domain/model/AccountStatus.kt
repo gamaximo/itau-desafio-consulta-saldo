@@ -11,7 +11,7 @@ enum class AccountStatus {
         fun from(raw: String): AccountStatus =
             entries.firstOrNull { it.name == raw }
                 ?: throw InvalidTransactionEventException(
-                    "Unknown account status '$raw', expected one of ${entries.joinToString()}",
+                    "Status de conta desconhecido '$raw', esperado um de ${entries.joinToString()}",
                 )
     }
 }
