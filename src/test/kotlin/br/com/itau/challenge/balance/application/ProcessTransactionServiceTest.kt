@@ -17,7 +17,7 @@ import kotlin.test.assertNull
 
 class ProcessTransactionServiceTest {
 
-    /** Records what the service handed to the port, so the projection can be asserted on. */
+    /** Registra o que o serviço entregou à porta, para que a projeção possa ser verificada. */
     private class RecordingRepository(
         private val accepted: Boolean,
     ) : AccountBalanceRepository {
@@ -37,8 +37,8 @@ class ProcessTransactionServiceTest {
     }
 
     /**
-     * A rejected conditional write is a normal outcome, not a failure. If this ever surfaced as
-     * an exception instead, every duplicate would be retried and then dead-lettered.
+     * Uma escrita condicional rejeitada é um desfecho normal, não uma falha. Se isso algum dia
+     * aparecesse como exceção, toda duplicata seria retentada e depois mandada para o DLT.
      */
     @Test
     fun `reports STALE_DISCARDED when the write is rejected as not newer`() {
@@ -76,8 +76,8 @@ class ProcessTransactionServiceTest {
     }
 
     /**
-     * With the flag off, a declined transaction must not even reach the port — skipping the
-     * write is the point, not just ignoring its result.
+     * Com a flag desligada, uma transação recusada não pode sequer chegar à porta — pular a
+     * escrita é o objetivo, não apenas ignorar o resultado dela.
      */
     @Test
     fun `skips a declined transaction entirely when the flag is off`() {

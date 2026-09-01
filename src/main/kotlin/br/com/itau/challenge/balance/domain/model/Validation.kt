@@ -4,9 +4,9 @@ import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventExc
 import java.util.UUID
 
 /**
- * Validation helpers shared by the domain models. They throw [InvalidTransactionEventException]
- * so that every rejection — wherever it happens in the model — carries the same meaning to the
- * consumer: this payload is unprocessable, do not retry it.
+ * Validações compartilhadas pelos modelos de domínio. Todas lançam
+ * [InvalidTransactionEventException] para que qualquer rejeição — venha de onde vier no modelo —
+ * carregue o mesmo significado para o consumidor: este payload é inprocessável, não retente.
  */
 
 internal fun requireUuid(

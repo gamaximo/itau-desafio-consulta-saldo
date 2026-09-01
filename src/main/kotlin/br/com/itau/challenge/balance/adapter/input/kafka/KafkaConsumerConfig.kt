@@ -17,19 +17,20 @@ import org.springframework.util.backoff.ExponentialBackOff
 private const val DEAD_LETTER_SUFFIX = ".DLT"
 
 /**
- * Any partition of the dead letter topic will do — the original partition carries no meaning
- * once a message is quarantined, and pinning it would make the DLT fail whenever it has fewer
- * partitions than the source topic.
+ * Qualquer partição do dead letter topic serve — a partição de origem perde o significado quando
+ * a mensagem é posta em quarentena, e fixá-la faria o DLT falhar sempre que ele tivesse menos
+ * partições que o tópico de origem.
  */
 private const val ANY_PARTITION = -1
 
 private val deadLetterLogger = LoggerFactory.getLogger("br.com.itau.challenge.balance.DeadLetter")
 
 /**
- * Where a rejected record goes, and the one place it is logged.
+ * Para onde vai um registro rejeitado, e o único lugar onde ele é logado.
  *
- * A named function rather than a lambda inside the bean definition, so the routing rule and its
- * log line can be tested directly instead of only through a running Kafka container.
+ * É uma função nomeada, e não uma lambda dentro da definição do bean, para que a regra de
+ * roteamento e sua linha de log possam ser testadas diretamente, em vez de apenas através de um
+ * container Kafka rodando.
  */
 internal fun deadLetterDestinationFor(
     record: ConsumerRecord<*, *>,
@@ -49,11 +50,11 @@ internal fun deadLetterDestinationFor(
 class KafkaConsumerConfig {
 
     /**
-     * Topics are declared as beans so `KafkaAdmin` creates them at startup through the admin
-     * API. Redpanda has `auto_create_topics_enabled` turned off in this stack, so without this
-     * the application would start, subscribe to nothing, and sit there looking healthy while
-     * consuming zero messages. Creation is idempotent: an existing topic is left untouched,
-     * partition count included.
+     * Os tópicos são declarados como beans para que o `KafkaAdmin` os crie na inicialização pela
+     * admin API. O Redpanda desta stack está com `auto_create_topics_enabled` desligado, então,
+     * sem isso, a aplicação subiria, se inscreveria em nada e ficaria ali com aparência saudável
+     * consumindo zero mensagens. A criação é idempotente: um tópico existente é deixado intacto,
+     * contagem de partições incluída.
      */
     @Bean
     fun transactionsTopic(
@@ -68,36 +69,38 @@ class KafkaConsumerConfig {
     ): NewTopic = TopicBuilder.name(topicName + DEAD_LETTER_SUFFIX).partitions(partitions).replicas(1).build()
 
     /**
-     * Splits failures into the only two categories that matter operationally.
+     * Separa as falhas nas duas únicas categorias que importam operacionalmente.
      *
-     * **Transient** — DynamoDB throttling, a dropped connection, a timeout. Retried in place
-     * with exponential backoff, because the next attempt has a real chance of succeeding and
-     * the offset must not advance past an event that was never applied.
+     * **Transitória** — throttling do DynamoDB, conexão caída, timeout. Retentada no lugar, com
+     * backoff exponencial, porque a próxima tentativa tem chance real de dar certo e o offset não
+     * pode avançar sobre um evento que nunca foi aplicado.
      *
-     * **Unprocessable** — [InvalidTransactionEventException]. Retrying is pointless: the
-     * payload will be just as malformed in 500ms. Worse, retrying forever would park the
-     * consumer on that offset and stall every well-formed message queued behind it on the same
-     * partition — one bad record taking down a whole partition. These go straight to the dead
-     * letter topic, where they can be inspected and replayed after the producer is fixed.
+     * **Inprocessável** — [InvalidTransactionEventException]. Retentar não adianta: o payload vai
+     * continuar igualmente malformado daqui a 500ms. Pior, retentar indefinidamente prenderia o
+     * consumidor naquele offset e travaria todas as mensagens bem formadas que estivessem atrás
+     * dele na mesma partição — um registro ruim derrubando uma partição inteira. Esses vão direto
+     * para o dead letter topic, onde podem ser inspecionados e reprocessados depois que o produtor
+     * for corrigido.
      */
     @Bean
     fun kafkaErrorHandler(kafkaTemplate: KafkaTemplate<*, *>): DefaultErrorHandler {
         val recoverer = DeadLetterPublishingRecoverer(kafkaTemplate, ::deadLetterDestinationFor)
 
-        // Bounded on purpose. Retrying forever would turn a dependency outage into an
-        // unbounded stall; after three attempts spanning a few seconds, the event is
-        // quarantined and the consumer keeps draining the partition. Kafka retains the
-        // original message either way, so nothing is lost and a replay is always possible.
+        // Limitado de propósito. Retentar para sempre transformaria a indisponibilidade de uma
+        // dependência numa parada sem fim; depois de três tentativas espalhadas por alguns
+        // segundos, o evento é posto em quarentena e o consumidor segue drenando a partição. O
+        // Kafka retém a mensagem original de qualquer forma, então nada se perde e um replay
+        // continua sempre possível.
         val backOff =
             ExponentialBackOff().apply {
                 initialInterval = 500
                 multiplier = 2.0
                 maxInterval = 5_000
                 maxAttempts = 3
-                // Spreads retries apart when many consumer threads fail at the same moment —
-                // a DynamoDB throttle typically hits all of them at once, and identical
-                // backoff would have them all retry in lockstep, re-throttling the table on
-                // every wave.
+                // Espalha os retries quando várias threads do consumidor falham no mesmo instante
+                // — um throttle do DynamoDB costuma atingir todas de uma vez, e um backoff
+                // idêntico faria todas retentarem em sincronia, voltando a estrangular a tabela a
+                // cada onda.
                 jitter = 100
             }
 

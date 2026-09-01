@@ -21,9 +21,9 @@ class TimestampsTest {
     }
 
     /**
-     * Floor division, not truncation toward zero. With `/` and `%`, a pre-epoch timestamp
-     * would produce a negative nanosecond adjustment and `Instant` would reject it — or, worse
-     * on another code path, silently land a second off.
+     * Divisão com piso, não truncamento em direção a zero. Com `/` e `%`, um timestamp anterior
+     * ao epoch produziria um ajuste negativo de nanossegundos e o `Instant` o rejeitaria — ou,
+     * pior, em outro caminho de código, cairia silenciosamente um segundo fora.
      */
     @Test
     fun `converts a timestamp before the epoch`() {

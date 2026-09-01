@@ -10,7 +10,7 @@ private const val DOMAIN_PACKAGE = "br.com.itau.challenge.balance.domain.."
 private const val APPLICATION_PACKAGE = "br.com.itau.challenge.balance.application.."
 private const val PORT_PACKAGE = "br.com.itau.challenge.balance.port.."
 
-/** The layers that make up the core — none of them may know about any specific technology. */
+/** As camadas que formam o núcleo — nenhuma delas pode conhecer qualquer tecnologia específica. */
 private val CORE_PACKAGES = listOf(DOMAIN_PACKAGE, APPLICATION_PACKAGE, PORT_PACKAGE)
 
 class HexagonalArchitectureTest {
@@ -37,9 +37,10 @@ class HexagonalArchitectureTest {
     }
 
     /**
-     * The core must not know which database is behind the ports. Without this, an
-     * `import software.amazon.awssdk...` could drift into a use case and quietly weld the
-     * business rules to DynamoDB — the exact coupling the hexagon exists to prevent.
+     * O núcleo não pode saber qual banco está atrás das portas. Sem isto, um
+     * `import software.amazon.awssdk...` poderia se infiltrar num caso de uso e soldar as regras
+     * de negócio ao DynamoDB em silêncio — exatamente o acoplamento que o hexágono existe para
+     * evitar.
      */
     @Test
     fun `core does not depend on the AWS SDK`() {
@@ -47,8 +48,9 @@ class HexagonalArchitectureTest {
     }
 
     /**
-     * Same argument for the messaging technology: the ingestion use case is about projecting a
-     * balance, not about Kafka. Kafka belongs to one driving adapter and must stay there.
+     * O mesmo argumento vale para a tecnologia de mensageria: o caso de uso de ingestão trata de
+     * projetar um saldo, não de Kafka. O Kafka pertence a um adaptador de entrada e tem que ficar
+     * lá.
      */
     @Test
     fun `core does not depend on Kafka`() {

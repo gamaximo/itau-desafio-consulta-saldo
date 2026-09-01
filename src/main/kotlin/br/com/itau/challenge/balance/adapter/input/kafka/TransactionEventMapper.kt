@@ -11,9 +11,9 @@ import br.com.itau.challenge.balance.domain.model.TransactionStatus
 import br.com.itau.challenge.balance.domain.model.TransactionType
 
 /**
- * Translates the wire message into the domain model, turning every missing field into an
- * [InvalidTransactionEventException] that names the field. The message is quarantined at the
- * edge: nothing past this point has to deal with nulls.
+ * Traduz a mensagem que vem do tópico para o modelo de domínio, transformando cada campo ausente
+ * numa [InvalidTransactionEventException] que nomeia o campo. A mensagem é colocada em quarentena
+ * já na borda: nada depois deste ponto precisa lidar com nulos.
  */
 internal fun TransactionEventMessage.toDomain(): ProcessedTransaction {
     val transactionMessage = transaction.required("transaction")

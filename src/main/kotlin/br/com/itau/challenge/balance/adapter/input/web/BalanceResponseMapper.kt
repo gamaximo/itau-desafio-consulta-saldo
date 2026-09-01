@@ -7,15 +7,15 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Fixed-width ISO 8601 with a six-digit fraction and an explicit offset.
+ * ISO 8601 de largura fixa, com seis dígitos de fração e offset explícito.
  *
- * `DateTimeFormatter.ISO_OFFSET_DATE_TIME` prints the *minimum* number of fractional digits, so
- * the same field would come back as `.4848` for one balance and `.589998` for another, and
- * `.0` — or nothing at all — on a whole second. A consumer parsing a fixed layout would break
- * on whichever case it happened not to see first.
+ * O `DateTimeFormatter.ISO_OFFSET_DATE_TIME` imprime o número *mínimo* de dígitos fracionários,
+ * então o mesmo campo voltaria como `.4848` para um saldo e `.589998` para outro — e como `.0`,
+ * ou nada, num segundo cheio. Um consumidor que espera um layout fixo quebraria justamente no
+ * caso que ele não encontrou primeiro.
  *
- * Six digits because the source timestamps are microseconds: anything shorter would silently
- * truncate the precision the authorizer actually sent.
+ * Seis dígitos porque os timestamps de origem são microssegundos: qualquer coisa menor truncaria
+ * silenciosamente a precisão que o autorizador realmente enviou.
  */
 private val ISO_8601_MICROS: DateTimeFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSSSSXXX")
 

@@ -6,11 +6,12 @@ private const val MICROS_PER_SECOND = 1_000_000L
 private const val NANOS_PER_MICRO = 1_000L
 
 /**
- * Converts an epoch timestamp in **microseconds** — the unit used across the transaction
- * topic — into an [Instant].
+ * Converte um timestamp epoch em **microssegundos** — a unidade usada em todo o tópico de
+ * transações — para um [Instant].
  *
- * Uses floor division so that timestamps before the epoch convert correctly instead of
- * truncating toward zero. `Instant` keeps nanosecond precision, so no digits are lost.
+ * Usa divisão com piso (floor) para que timestamps anteriores ao epoch sejam convertidos
+ * corretamente, em vez de truncarem em direção a zero. `Instant` mantém precisão de
+ * nanossegundos, então nenhum dígito é perdido.
  */
 fun microsToInstant(epochMicros: Long): Instant =
     Instant.ofEpochSecond(

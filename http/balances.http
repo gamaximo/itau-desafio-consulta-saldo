@@ -1,20 +1,20 @@
-### Balance of a known account.
-### Replace {{accountId}} in http-client.env.json with an account printed by
+### Saldo de uma conta conhecida.
+### Substitua {{accountId}} no http-client.env.json por uma conta impressa pelo comando
 ### `make kafka-produce-scenario TOPIC=transacoes-financeiras-processadas`.
 GET {{host}}/balances/{{accountId}}
 Accept: application/json
 
-### Malformed identifier — expects 400 with application/problem+json.
+### Identificador malformado — espera 400 com application/problem+json.
 GET {{host}}/balances/not-a-uuid
 Accept: application/json
 
-### Well-formed identifier that was never seen — expects 404.
+### Identificador bem formado que nunca foi visto — espera 404.
 GET {{host}}/balances/00000000-0000-0000-0000-000000000000
 Accept: application/json
 
-### Liveness and readiness probes.
+### Probes de liveness e readiness.
 GET {{host}}/actuator/health
 Accept: application/json
 
-### Business metrics, including balance.transactions.processed by outcome.
+### Métricas de negócio, incluindo balance.transactions.processed por resultado.
 GET {{host}}/actuator/prometheus

@@ -16,8 +16,8 @@ class AccountBalanceTest {
     }
 
     /**
-     * Two balances with the same version describe the same moment. Since `updatedAt` is derived
-     * rather than stored, the two can never disagree — which is the whole reason it is derived.
+     * Dois saldos com a mesma versão descrevem o mesmo momento. Como `updatedAt` é derivado, e
+     * não armazenado, os dois nunca podem discordar — que é justamente a razão de ser derivado.
      */
     @Test
     fun `two balances with the same version report the same instant`() {

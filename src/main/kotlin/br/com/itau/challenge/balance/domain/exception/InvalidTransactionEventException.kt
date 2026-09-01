@@ -1,11 +1,12 @@
 package br.com.itau.challenge.balance.domain.exception
 
 /**
- * A transaction event that can never become valid, no matter how many times it is retried:
- * malformed identifiers, unknown enum values, negative amounts, bad currency codes.
+ * Evento de transação que nunca vai se tornar válido, por mais vezes que seja retentado:
+ * identificadores malformados, valores de enum desconhecidos, montantes negativos, código de
+ * moeda inválido.
  *
- * Retrying it would block the partition forever, so the consumer routes it straight to the
- * dead letter topic instead of backing off.
+ * Retentar travaria a partição para sempre, então o consumidor manda direto para o dead letter
+ * topic em vez de aplicar backoff.
  */
 class InvalidTransactionEventException(
     message: String,

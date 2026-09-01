@@ -29,9 +29,9 @@ class MoneyTest {
     }
 
     /**
-     * The reason this class normalises at all: DynamoDB trims trailing zeros, so a balance
-     * written as `300.00` comes back as `300`. Both spellings must produce the same Money, or
-     * the value would change meaning simply by being stored and read back.
+     * O motivo de esta classe normalizar: o DynamoDB corta zeros à direita, então um saldo
+     * gravado como `300.00` volta como `300`. As duas grafias precisam produzir o mesmo Money, ou
+     * o valor mudaria de significado só por ter sido armazenado e lido de volta.
      */
     @Test
     fun `normalises the amount to the currency scale`() {
@@ -52,8 +52,8 @@ class MoneyTest {
     }
 
     /**
-     * Scale follows the currency, not a hardcoded 2. Yen has no minor unit, so normalising it
-     * to two decimals would be wrong in a way that is easy to miss.
+     * A escala segue a moeda, e não um 2 fixo no código. O iene não tem subunidade, então
+     * normalizá-lo para duas casas decimais estaria errado de um jeito fácil de passar batido.
      */
     @Test
     fun `uses the fraction digits of the currency itself`() {
@@ -62,8 +62,8 @@ class MoneyTest {
     }
 
     /**
-     * Rounding money silently is how cents disappear. An amount too precise for its currency is
-     * a producer defect, and it is reported as one.
+     * Arredondar dinheiro em silêncio é como centavos somem. Um montante preciso demais para a
+     * moeda dele é um defeito do produtor, e é reportado como tal.
      */
     @Test
     fun `rejects an amount more precise than the currency allows`() {
@@ -73,9 +73,9 @@ class MoneyTest {
     }
 
     /**
-     * A balance may legitimately be negative — an overdraft is a normal account state. Only a
-     * transaction *amount* is constrained to be non-negative, and that rule lives in
-     * [Transaction], not here.
+     * Um saldo pode legitimamente ser negativo — cheque especial é um estado normal de conta.
+     * Apenas o *montante* de uma transação é obrigado a ser não-negativo, e essa regra vive em
+     * [Transaction], não aqui.
      */
     @Test
     fun `allows a negative amount, because an overdrawn balance is a real balance`() {

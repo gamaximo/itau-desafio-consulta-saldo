@@ -26,11 +26,12 @@ class DynamoDbAccountBalanceProvider(
                         ACCOUNT_ID_ATTRIBUTE to AttributeValue.builder().s(accountId).build(),
                     ),
                 )
-                // A strongly consistent read costs twice the capacity of an eventually
-                // consistent one, and it is worth it here. Eventual consistency can serve a
-                // balance from a replica that has not caught up — so a client that just saw a
-                // transaction confirmed could query and get the *previous* balance back. For a
-                // balance endpoint that reads as a bug in the bank, not as a stale cache.
+                // Uma leitura fortemente consistente custa o dobro da capacidade de uma leitura
+                // eventualmente consistente, e aqui vale a pena. Com consistência eventual, o
+                // saldo pode ser servido por uma réplica que ainda não recebeu a última escrita —
+                // então um cliente que acabou de ver uma transação confirmada poderia consultar e
+                // receber o saldo *anterior*. Num endpoint de saldo, isso é lido como um defeito
+                // do banco, não como cache desatualizado.
                 .consistentRead(true)
                 .build()
 
@@ -44,8 +45,8 @@ class DynamoDbAccountBalanceProvider(
                 )
             }
 
-        // `hasItem()` distinguishes a missing item from an empty response; GetItem returns an
-        // empty map rather than null when the key does not exist.
+        // `hasItem()` distingue item ausente de resposta vazia; o GetItem devolve um mapa vazio,
+        // e não null, quando a chave não existe.
         return if (item.hasItem()) item.item().toAccountBalance() else null
     }
 }

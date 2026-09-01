@@ -4,17 +4,17 @@ import br.com.itau.challenge.balance.domain.model.AccountBalance
 
 fun interface AccountBalanceRepository {
     /**
-     * Stores [accountBalance] only if it is strictly newer than what is already stored for the
-     * same account.
+     * Armazena [accountBalance] somente se ele for estritamente mais recente do que o que já está
+     * armazenado para a mesma conta.
      *
-     * The comparison lives behind this port on purpose: making it atomic is the adapter's
-     * problem (a conditional write, a compare-and-swap, an optimistic lock — whatever the
-     * backing store offers). A read-then-write in the use case would be a race, since two
-     * consumers on different partitions can process the same account concurrently.
+     * A comparação fica atrás desta porta de propósito: torná-la atômica é problema do adaptador
+     * (uma escrita condicional, um compare-and-swap, um lock otimista — o que o armazenamento
+     * oferecer). Um read-then-write no caso de uso seria uma condição de corrida, já que dois
+     * consumidores em partições diferentes podem processar a mesma conta simultaneamente.
      *
-     * @return `true` if the balance was applied, `false` if a newer or identical version was
-     *   already stored — which is the normal outcome for duplicates and late deliveries, not
-     *   an error.
+     * @return `true` se o saldo foi aplicado, `false` se uma versão mais recente ou idêntica já
+     *   estava armazenada — o que é o resultado normal para duplicatas e entregas atrasadas, e
+     *   não um erro.
      */
     fun saveIfNewer(accountBalance: AccountBalance): Boolean
 }

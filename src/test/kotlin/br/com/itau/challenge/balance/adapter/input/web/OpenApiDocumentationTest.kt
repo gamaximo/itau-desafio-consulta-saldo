@@ -11,10 +11,11 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 
 /**
- * The generated contract is only useful if it is actually served. springdoc is built against
- * Spring Boot 3 and Jackson 2 while this application runs Boot 4 and Jackson 3, so this test
- * exists to fail loudly if that combination ever stops working — otherwise the documentation
- * would quietly 404 and nobody would notice until a consumer asked for it.
+ * O contrato gerado só serve se for de fato servido. O springdoc é construído sobre Spring Boot 3
+ * e Jackson 2, enquanto esta aplicação roda Boot 4 e Jackson 3, então este teste existe para
+ * falhar de forma barulhenta se essa combinação parar de funcionar — caso contrário a
+ * documentação passaria a devolver 404 em silêncio e ninguém perceberia até um consumidor pedir
+ * por ela.
  */
 @SpringBootTest
 @AutoConfigureMockMvc

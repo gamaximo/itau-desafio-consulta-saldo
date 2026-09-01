@@ -12,7 +12,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-/** The payload published on `transacoes-financeiras-processadas`, verbatim from the spec. */
+/** O payload publicado em `transacoes-financeiras-processadas`, literalmente como na especificação. */
 private const val SAMPLE_PAYLOAD = """
 {
   "transaction": {
@@ -56,9 +56,9 @@ class TransactionEventMapperTest {
     }
 
     /**
-     * The snake_case field is the one most likely to break silently: bound to the wrong name it
-     * would arrive as null and the event would be dead-lettered as "missing field", with the
-     * real cause being a mapping typo.
+     * O campo em snake_case é o que tem mais chance de quebrar em silêncio: vinculado ao nome
+     * errado, chegaria como null e o evento iria para o DLT como "campo ausente", quando a causa
+     * real seria um erro de digitação no mapeamento.
      */
     @Test
     fun `binds the snake_case created_at field`() {
@@ -66,8 +66,8 @@ class TransactionEventMapperTest {
     }
 
     /**
-     * The decisive precision test. Bound through a Double, 97.07 becomes 97.06999999999999
-     * and the exact decimal is gone before any business code runs.
+     * O teste decisivo de precisão. Vinculado por um Double, 97.07 vira 97.06999999999999 e o
+     * decimal exato se perde antes de qualquer código de negócio rodar.
      */
     @Test
     fun `keeps monetary amounts exact`() {

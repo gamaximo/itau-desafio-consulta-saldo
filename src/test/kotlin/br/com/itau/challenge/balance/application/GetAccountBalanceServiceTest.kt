@@ -19,9 +19,9 @@ class GetAccountBalanceServiceTest {
     }
 
     /**
-     * A missing balance becomes an exception here rather than a null travelling further up.
-     * The web adapter turns it into a 404; nothing between the port and the response has to
-     * remember to check for null.
+     * Um saldo ausente vira exceção aqui, em vez de um null subindo pela aplicação. O adaptador
+     * web transforma isso num 404; nada entre a porta e a resposta precisa lembrar de checar
+     * null.
      */
     @Test
     fun `raises a not-found error when no balance has been projected`() {

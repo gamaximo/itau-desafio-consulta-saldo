@@ -1,11 +1,11 @@
 package br.com.itau.challenge.balance.domain.model
 
 /**
- * The account snapshot carried by a transaction event.
+ * O snapshot da conta carregado por um evento de transação.
  *
- * [balance] is **not** computed by this service — the authorizer already settled it and ships
- * the resulting balance inside every event. This service projects that snapshot, it does not
- * replay a ledger. See `ProcessedTransaction` for why that distinction matters.
+ * [balance] **não** é calculado por este serviço — o autorizador já liquidou a transação e envia
+ * o saldo resultante dentro de cada evento. Este serviço projeta esse snapshot, não reprocessa
+ * um ledger. Veja `ProcessedTransaction` para entender por que essa distinção importa.
  */
 data class Account(
     val id: String,

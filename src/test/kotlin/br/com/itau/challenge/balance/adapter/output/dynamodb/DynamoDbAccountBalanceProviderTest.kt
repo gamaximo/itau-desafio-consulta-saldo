@@ -58,8 +58,8 @@ class DynamoDbAccountBalanceProviderTest {
     }
 
     /**
-     * `updatedAt` is recomputed from the stored version rather than read from the item, so the
-     * write-only copy can never contradict what the API reports.
+     * `updatedAt` é recalculado a partir da versão armazenada, em vez de lido do item, para que a
+     * cópia somente-escrita nunca contradiga o que a API reporta.
      */
     @Test
     fun `derives updatedAt from the stored version, not from the stored string`() {
@@ -87,8 +87,8 @@ class DynamoDbAccountBalanceProviderTest {
     }
 
     /**
-     * Without a strongly consistent read, a client that just saw its transaction settle could
-     * query and be served the previous balance from a lagging replica.
+     * Sem uma leitura fortemente consistente, um cliente que acabou de ver sua transação ser
+     * liquidada poderia consultar e receber o saldo anterior, servido por uma réplica atrasada.
      */
     @Test
     fun `reads consistently`() {
@@ -103,9 +103,10 @@ class DynamoDbAccountBalanceProviderTest {
     }
 
     /**
-     * DynamoDB answers a missing key with an empty item map rather than an absent one, so
-     * `hasItem()` is the only correct check — testing the map for emptiness would work, but
-     * relying on it would break the moment a projection legitimately returns no attributes.
+     * O DynamoDB responde a uma chave inexistente com um mapa de item vazio, e não ausente, então
+     * `hasItem()` é a única checagem correta — testar se o mapa está vazio funcionaria, mas
+     * depender disso quebraria no momento em que uma projeção legitimamente não retornasse
+     * atributo nenhum.
      */
     @Test
     fun `returns null when the account has no stored balance`() {

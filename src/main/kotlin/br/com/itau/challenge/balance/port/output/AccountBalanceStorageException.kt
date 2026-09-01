@@ -1,15 +1,14 @@
 package br.com.itau.challenge.balance.port.output
 
 /**
- * The balance store could not be reached or refused the operation for an infrastructural
- * reason — throttling, timeout, connection failure.
+ * O armazenamento de saldos não pôde ser alcançado ou recusou a operação por um motivo de
+ * infraestrutura — throttling, timeout, falha de conexão.
  *
- * It lives in `port` rather than in `domain` because unavailability is a property of the
- * contract between the core and the outside world, not a business rule. Declaring it here is
- * what lets the driven adapter translate `SdkException` into something the rest of the
- * application understands, so neither the use cases nor the web adapter ever import an AWS
- * type. Swapping DynamoDB for another store changes which exception is caught, not a single
- * line of the code that reacts to it.
+ * Vive em `port` e não em `domain` porque indisponibilidade é propriedade do contrato entre o
+ * núcleo e o mundo externo, não uma regra de negócio. É isso que permite ao adaptador traduzir
+ * `SdkException` em algo que o resto da aplicação entende, sem que os casos de uso nem o
+ * adaptador web importem qualquer tipo da AWS. Trocar o DynamoDB por outro armazenamento muda
+ * qual exceção é capturada, e nenhuma linha do código que reage a ela.
  */
 class AccountBalanceStorageException(
     message: String,

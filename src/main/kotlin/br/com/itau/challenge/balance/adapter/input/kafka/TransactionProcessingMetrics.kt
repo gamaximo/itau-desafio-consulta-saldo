@@ -9,12 +9,13 @@ private const val PROCESSED_METRIC = "balance.transactions.processed"
 private const val REJECTED_METRIC = "balance.transactions.rejected"
 
 /**
- * Business metrics for the ingestion pipeline.
+ * Métricas de negócio do pipeline de ingestão.
  *
- * Counters are split by outcome rather than lumped into a single "processed" number because
- * the interesting signals are ratios, not totals. Throughput alone says nothing: a consumer
- * that discards every event as stale looks exactly as busy as a healthy one on a raw message
- * count, and only the `stale_discarded` share tells the two apart.
+ * Os contadores são separados por resultado, em vez de somados num único número de
+ * "processados", porque os sinais interessantes são proporções, não totais. Throughput sozinho
+ * não diz nada: um consumidor que descarta todos os eventos como obsoletos parece tão ocupado
+ * quanto um saudável se você olhar apenas a contagem bruta de mensagens, e só a fatia de
+ * `stale_discarded` distingue os dois.
  */
 @Component
 class TransactionProcessingMetrics(

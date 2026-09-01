@@ -38,8 +38,9 @@ class AccountTest {
     }
 
     /**
-     * A DISABLED account still has a balance, and a closed account's last balance is exactly
-     * what support needs to see. Status is carried, never used to filter events out.
+     * Uma conta DISABLED continua tendo saldo, e o último saldo de uma conta encerrada é
+     * exatamente o que o suporte precisa ver. O status é carregado, nunca usado para filtrar
+     * eventos.
      */
     @Test
     fun `accepts a disabled account`() {
