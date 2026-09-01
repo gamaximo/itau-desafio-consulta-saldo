@@ -12,6 +12,9 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
       TRANSACTIONS_TOPIC: transacoes-financeiras-processadas
       TRANSACTIONS_TOPIC_PARTITIONS: "3"
+      # Logs em JSON, como seriam num ambiente com agregador. Rodando pela IDE o padrão continua
+      # sendo o formato legível por humanos.
+      LOG_FORMAT: ecs
     depends_on:
       - dynamodb
       - dynamodb-seed
