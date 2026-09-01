@@ -331,9 +331,34 @@ offset. Sem isso — o padrão do Boot é `immediate` — todo deploy devolve er
 atendido naquele instante.
 
 **Logs estruturados** em JSON (Elastic Common Schema) quando `LOG_FORMAT=ecs`, como o
-docker-compose define. Assim `accountId` e `transaction` viram campos pesquisáveis no agregador em
-vez de texto solto dentro de uma mensagem. Rodando pela IDE, o padrão continua sendo o formato
-legível por humanos.
+docker-compose define. Rodando pela IDE, o padrão continua sendo o formato legível por humanos.
+
+Os identificadores vão para o **MDC**, não interpolados no texto — é o que os torna campos de
+primeira classe no agregador:
+
+```json
+{
+  "message": "Stale event discarded, stored balance is already newer",
+  "account": "d96301ba-cf78-4381-bf98-22139beedfd2",
+  "transaction": "82d01c74-b29c-4676-82ce-8dacb0d169bc",
+  "version": "1788292375385205"
+}
+```
+
+`account:d96301ba-…` vira uma consulta; procurar o mesmo UUID dentro de texto livre dependeria de
+regex e de a mensagem nunca mudar de formato.
+
+**Log de acesso HTTP** (`RequestLoggingFilter`), uma linha por requisição com método, rota, status
+e duração — também no MDC. Sem ele existiriam apenas métricas agregadas, que não respondem à
+pergunta de uma investigação: "este sistema chamou às 14h32? o que recebeu?". As chamadas ao
+actuator ficam de fora: as probes batem de segundos em segundos e encheriam o agregador de linhas
+que ninguém consulta.
+
+O caminho feliz da ingestão fica em `DEBUG` de propósito — logar cada saldo aplicado afogaria o
+log em volume de produção. O rastro definitivo não depende de log: está no próprio item
+persistido (`lastTransactionId` e `version`) e no evento retido pelo Kafka. Para investigar um
+caso, basta subir o nível do pacote, sem deploy:
+`logging.level.br.com.itau.challenge.balance.adapter.input.kafka=DEBUG`.
 
 ## O que não foi implementado, e por quê
 

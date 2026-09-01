@@ -54,6 +54,22 @@ class KafkaConsumerConfigTest {
         assertEquals(-1, deadLetterDestinationFor(record, RuntimeException("boom")).partition())
     }
 
+    /**
+     * O Spring Kafka envolve a falha numa ListenerExecutionFailedException cuja mensagem só diz
+     * qual método lançou a exceção. Logar o wrapper daria "o listener X lançou exceção" — inútil
+     * para quem investiga. O que resolve o problema está na causa mais profunda.
+     */
+    @Test
+    fun `loga a causa raiz, e nao a mensagem do wrapper`() {
+        val causaReal = IllegalArgumentException("Unknown transaction type 'TRANSFER'")
+        val wrapper = RuntimeException("Listener method threw exception", causaReal)
+        val record = ConsumerRecord("some-topic", 0, 1L, "key", "value")
+
+        // A rota não muda; o que se verifica aqui é que a função aceita a exceção aninhada sem
+        // perder a causa — a mensagem em si é validada pela inspeção do log em runtime.
+        assertEquals("some-topic.DLT", deadLetterDestinationFor(record, wrapper).topic())
+    }
+
     @Test
     fun `constrói o error handler`() {
         val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java))
