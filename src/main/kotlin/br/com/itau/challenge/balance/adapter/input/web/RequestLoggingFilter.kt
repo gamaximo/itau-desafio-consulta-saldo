@@ -66,7 +66,19 @@ class RequestLoggingFilter : OncePerRequestFilter() {
             } finally {
                 // Threads são reaproveitadas entre requisições: sem a limpeza, o contexto de uma
                 // vazaria para a seguinte e o log apontaria para a conta errada.
-                listOf("http.method", "http.path", "http.status", "http.duration_ms").forEach(MDC::remove)
+                //
+                // `account` e `owner` são postos pelo controller, não aqui, mas a limpeza é deste
+                // filtro porque ele é a fronteira da requisição — se cada camada limpasse o que
+                // põe, o controller teria de limpar antes de retornar e os campos sumiriam
+                // exatamente quando esta linha vai ser escrita.
+                listOf(
+                    "http.method",
+                    "http.path",
+                    "http.status",
+                    "http.duration_ms",
+                    "account",
+                    "owner",
+                ).forEach(MDC::remove)
             }
         }
     }

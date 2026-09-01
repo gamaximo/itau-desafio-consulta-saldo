@@ -355,7 +355,21 @@ filtrar o log — e é também a razão de não existir um GSI por `owner`: reso
 um campo, resolver no banco custaria escrita em toda ingestão.
 
 **Log de acesso HTTP** (`RequestLoggingFilter`), uma linha por requisição com método, rota, status
-e duração — também no MDC. Sem ele existiriam apenas métricas agregadas, que não respondem à
+e duração — também no MDC, mais `account` e `owner` quando a conta é encontrada.
+
+Os nomes de campo são **os mesmos da ingestão**, e é aí que está o ganho: uma única consulta por
+`owner` devolve os eventos consumidos e as chamadas à API daquele titular, em ordem cronológica.
+
+```
+20:13:56.659  INGESTÃO   Evento obsoleto descartado: o saldo armazenado já é mais recente
+20:13:56.671  INGESTÃO   Evento obsoleto descartado: o saldo armazenado já é mais recente
+20:13:56.675  INGESTÃO   Evento obsoleto descartado: o saldo armazenado já é mais recente
+20:14:03.675  CONSULTA   GET /balances/7deba977-2a27-4b30-b352-a7074d6c062a -> 200 (31ms)
+```
+
+Quem preenche é o controller — primeiro ponto que conhece o titular, já que a URL só carrega o
+identificador da conta —, e quem escreve a linha é o filtro, no `finally`. Sem conta encontrada o
+campo simplesmente não aparece, o que é melhor que um vazio sugerindo titular desconhecido. Sem ele existiriam apenas métricas agregadas, que não respondem à
 pergunta de uma investigação: "este sistema chamou às 14h32? o que recebeu?". As chamadas ao
 actuator ficam de fora: as probes batem de segundos em segundos e encheriam o agregador de linhas
 que ninguém consulta.
