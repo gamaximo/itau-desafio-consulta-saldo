@@ -18,16 +18,16 @@ FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 COPY --from=builder /workspace/app.jar app.jar
 
-# Runs as an unprivileged user. A process that never needs to write outside its own heap has no
-# reason to hold root inside the container — if the application is ever compromised, the blast
-# radius stops at a user that owns nothing.
+# Roda com um usuário sem privilégios. Um processo que nunca precisa escrever fora do próprio heap
+# não tem motivo para ser root dentro do contêiner — se a aplicação for comprometida algum dia, o
+# raio de alcance para num usuário que não é dono de nada.
 RUN useradd --system --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8080
 
-# MaxRAMPercentage instead of a fixed -Xmx: the JVM sizes its heap from the container's memory
-# limit, so the same image behaves correctly whether it is given 512MB locally or 4GB in
-# production, with no rebuild and no environment-specific flag.
+# MaxRAMPercentage em vez de um -Xmx fixo: a JVM dimensiona o heap a partir do limite de memória
+# do contêiner, então a mesma imagem se comporta corretamente recebendo 512MB localmente ou 4GB em
+# produção, sem rebuild e sem flag específica por ambiente.
 ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]

@@ -27,8 +27,9 @@ class EnumParsingTest {
     }
 
     /**
-     * The rejection message names the offending value and lists what was expected. When a bad
-     * event turns up on the dead letter topic at 3am, that message is the entire diagnosis.
+     * A mensagem de rejeição nomeia o valor problemático e lista o que era esperado. Quando um
+     * evento ruim aparece no dead letter topic às 3 da manhã, essa mensagem é o diagnóstico
+     * inteiro.
      */
     @Test
     fun `rejects an unknown transaction type and says what was expected`() {
@@ -49,9 +50,9 @@ class EnumParsingTest {
     }
 
     /**
-     * Case-sensitive on purpose: the contract specifies uppercase values, and quietly accepting
-     * `credit` would let a producer drift off-contract without anyone noticing until the
-     * mismatch surfaced somewhere less obvious.
+     * Sensível a maiúsculas de propósito: o contrato especifica valores em caixa alta, e aceitar
+     * `credit` em silêncio deixaria um produtor se afastar do contrato sem ninguém perceber, até
+     * a divergência aparecer em algum lugar bem menos óbvio.
      */
     @Test
     fun `rejects a known value in the wrong case`() {

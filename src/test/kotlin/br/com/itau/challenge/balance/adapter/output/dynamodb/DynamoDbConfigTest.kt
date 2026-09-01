@@ -6,9 +6,9 @@ import kotlin.test.assertNotNull
 class DynamoDbConfigTest {
 
     /**
-     * Building the client is where an unbounded `apiCallTimeout` would go unnoticed: the SDK
-     * accepts the configuration either way and only reveals the difference during an outage.
-     * This at least pins that the override configuration is assembled without error.
+     * A construção do cliente é onde um `apiCallTimeout` ilimitado passaria despercebido: o SDK
+     * aceita a configuração de qualquer jeito e só revela a diferença durante uma indisponibilidade.
+     * Este teste ao menos fixa que a configuração de override é montada sem erro.
      */
     @Test
     fun `builds a client with explicit timeouts`() {

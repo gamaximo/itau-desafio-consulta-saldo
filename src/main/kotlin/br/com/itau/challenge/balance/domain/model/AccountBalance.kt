@@ -3,13 +3,13 @@ package br.com.itau.challenge.balance.domain.model
 import java.time.Instant
 
 /**
- * The projected state of an account's balance — one item per account in DynamoDB, and the
- * payload behind `GET /balances/{accountId}`.
+ * O estado projetado do saldo de uma conta — um item por conta no DynamoDB, e o payload por trás
+ * de `GET /balances/{accountId}`.
  *
- * [version] is the microsecond timestamp of the transaction that produced this snapshot. It is
- * carried explicitly because it is what makes the write safe under concurrency: the repository
- * only overwrites an item whose stored version is strictly older, so a late or duplicated
- * event can never roll the balance backwards.
+ * [version] é o timestamp, em microssegundos, da transação que produziu este snapshot. Ele é
+ * carregado explicitamente porque é o que torna a escrita segura sob concorrência: o repositório
+ * só sobrescreve um item cuja versão armazenada seja estritamente mais antiga, de modo que um
+ * evento atrasado ou duplicado nunca faça o saldo retroceder.
  */
 data class AccountBalance(
     val accountId: String,
@@ -19,11 +19,11 @@ data class AccountBalance(
     val version: Long,
 ) {
     /**
-     * When this balance became true — derived from [version] rather than stored alongside it.
+     * Quando este saldo passou a valer — derivado de [version] em vez de armazenado ao lado dela.
      *
-     * They are the same instant expressed in two units, and storing both as sources of truth
-     * would invite them to drift apart. The persisted item does carry a human-readable copy,
-     * but it is written for operators to read and never read back by the application.
+     * São o mesmo instante expresso em duas unidades, e manter as duas como fonte de verdade
+     * seria um convite a divergirem. O item persistido carrega uma cópia legível por humanos, mas
+     * ela é escrita para operadores lerem e nunca é lida de volta pela aplicação.
      */
     val updatedAt: Instant
         get() = microsToInstant(version)

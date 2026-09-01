@@ -14,24 +14,25 @@ internal const val VERSION_ATTRIBUTE = "version"
 internal const val UPDATED_AT_ATTRIBUTE = "updatedAt"
 
 /**
- * Mapping between the domain model and the DynamoDB item shape, kept in one place so that the
- * reader and the writer can never disagree about attribute names or encodings.
+ * Mapeamento entre o modelo de domínio e o formato do item no DynamoDB, concentrado num só lugar
+ * para que a leitura e a escrita nunca discordem sobre nomes de atributo ou codificação.
  */
 
 internal fun AccountBalance.toItem(): Map<String, AttributeValue> =
     mapOf(
         ACCOUNT_ID_ATTRIBUTE to AttributeValue.builder().s(accountId).build(),
         OWNER_ATTRIBUTE to AttributeValue.builder().s(owner).build(),
-        // Stored as a DynamoDB Number from the exact decimal string. `toPlainString` avoids
-        // scientific notation, which DynamoDB would reject, and never loses a digit — unlike
-        // routing the value through a Double.
+        // Armazenado como Number do DynamoDB a partir da string decimal exata. `toPlainString`
+        // evita notação científica, que o DynamoDB rejeitaria, e não perde nenhum dígito — ao
+        // contrário do que aconteceria passando o valor por um Double.
         BALANCE_AMOUNT_ATTRIBUTE to AttributeValue.builder().n(balance.amount.toPlainString()).build(),
         BALANCE_CURRENCY_ATTRIBUTE to AttributeValue.builder().s(balance.currency).build(),
         LAST_TRANSACTION_ID_ATTRIBUTE to AttributeValue.builder().s(lastTransactionId).build(),
         VERSION_ATTRIBUTE to AttributeValue.builder().n(version.toString()).build(),
-        // Derived, write-only: never read back by the application. It exists so that whoever
-        // opens this item in a console or a support query sees a date instead of a 16-digit
-        // microsecond count. `version` remains the single source of truth for ordering.
+        // Derivado, somente escrita: nunca é lido de volta pela aplicação. Existe para que quem
+        // abrir este item num console ou numa consulta de suporte veja uma data em vez de um
+        // contador de microssegundos com 16 dígitos. `version` continua sendo a única fonte de
+        // verdade para a ordenação.
         UPDATED_AT_ATTRIBUTE to AttributeValue.builder().s(updatedAt.toString()).build(),
     )
 

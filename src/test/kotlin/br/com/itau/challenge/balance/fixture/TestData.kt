@@ -14,15 +14,15 @@ const val ACCOUNT_ID = "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975"
 const val OWNER_ID = "315e3cfe-f4af-4cd2-b298-a449e614349a"
 const val TRANSACTION_ID = "8e8ae808-b154-48b5-9f3e-553935cc4543"
 
-/** 2025-07-04T15:02:44.589998Z — the timestamp from the challenge's sample payload. */
+/** 2025-07-04T15:02:44.589998Z — o timestamp do payload de exemplo do desafio. */
 const val TRANSACTION_TIMESTAMP = 1751641364589998L
 
 const val ACCOUNT_CREATED_AT = 1634874339000000L
 
 /**
- * Builders with sensible defaults, so each test overrides only the field it is actually about.
- * A test that says `transaction(timestamp = older)` reads as the scenario it describes, with no
- * ceremony around the six fields that are irrelevant to it.
+ * Builders com padrões razoáveis, para que cada teste sobrescreva apenas o campo que ele de fato
+ * está exercitando. Um teste que diz `transaction(timestamp = older)` se lê como o cenário que
+ * descreve, sem cerimônia em torno dos seis campos irrelevantes para ele.
  */
 
 fun money(

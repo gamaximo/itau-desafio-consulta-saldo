@@ -18,11 +18,11 @@ services:
       - redpanda
       - redpanda-seed
     healthcheck:
-      # A TCP probe rather than an HTTP call to /actuator/health: the JRE image ships no curl,
-      # and adding one just to reach the endpoint would grow the runtime image for a check that
-      # only matters locally. In a real deployment the readiness and liveness probes hit
-      # /actuator/health/readiness and /actuator/health/liveness over HTTP — those endpoints
-      # are already enabled in application.yaml.
+      # Uma sonda TCP em vez de uma chamada HTTP a /actuator/health: a imagem JRE não traz curl,
+      # e adicionar um só para alcançar o endpoint aumentaria a imagem de runtime por uma
+      # verificação que só importa localmente. Num ambiente real, as probes de readiness e
+      # liveness chamam /actuator/health/readiness e /actuator/health/liveness por HTTP — esses
+      # endpoints já estão habilitados no application.yaml.
       test: ["CMD-SHELL", "bash -c 'echo > /dev/tcp/localhost/8080'"]
       interval: 10s
       timeout: 3s

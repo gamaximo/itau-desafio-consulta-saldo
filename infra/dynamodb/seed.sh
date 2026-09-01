@@ -12,20 +12,20 @@ until aws dynamodb list-tables --endpoint-url "${ENDPOINT_URL}" --region "${REGI
 done
 echo "DynamoDB Local is ready."
 
-# The table is intentionally created empty: balances are not seeded data, they are projected
-# from the transaction topic. A pre-seeded balance would be a fiction with no version behind
-# it, and the first real event for that account would have to be compared against it.
+# A tabela é criada vazia de propósito: saldos não são dados de seed, eles são projetados a
+# partir do tópico de transações. Um saldo pré-carregado seria uma ficção sem versão por trás, e o
+# primeiro evento real daquela conta teria que ser comparado contra ele.
 if aws dynamodb describe-table --table-name "${TABLE_NAME}" --endpoint-url "${ENDPOINT_URL}" --region "${REGION}" >/dev/null 2>&1; then
   echo "Table '${TABLE_NAME}' already exists, skipping creation."
 else
   echo "Creating table '${TABLE_NAME}'..."
-  # Single-attribute key schema: `accountId` as the partition key, no sort key.
+  # Esquema de chave com um único atributo: `accountId` como partition key, sem sort key.
   #
-  # The only access pattern this service has is "give me the current balance of one account",
-  # which a partition key answers in a single-digit-millisecond GetItem. A sort key would only
-  # make sense for keeping a history of balances per account — a different requirement, with a
-  # different cost profile, and one that would make the read path scan-and-pick-latest instead
-  # of a direct lookup.
+  # O único padrão de acesso deste serviço é "me dê o saldo atual desta conta", que uma partition
+  # key responde com um GetItem de poucos milissegundos. Uma sort key só faria sentido para manter
+  # histórico de saldos por conta — outro requisito, com outro perfil de custo, e que
+  # transformaria o caminho de leitura em "buscar vários e escolher o mais recente" em vez de uma
+  # consulta direta.
   aws dynamodb create-table \
     --table-name "${TABLE_NAME}" \
     --attribute-definitions AttributeName=accountId,AttributeType=S \

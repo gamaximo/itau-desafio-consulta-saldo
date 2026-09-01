@@ -22,9 +22,9 @@ class KafkaConsumerConfigTest {
     }
 
     /**
-     * The DLT is derived from the source topic name rather than configured separately, so the
-     * two can never drift apart — a renamed topic silently paired with an orphaned DLT would
-     * quarantine messages where nobody is looking for them.
+     * O DLT é derivado do nome do tópico de origem em vez de configurado à parte, então os dois
+     * nunca podem se descolar — um tópico renomeado convivendo em silêncio com um DLT órfão
+     * poria mensagens em quarentena onde ninguém vai procurá-las.
      */
     @Test
     fun `derives the dead letter topic from the transactions topic`() {
@@ -44,8 +44,8 @@ class KafkaConsumerConfigTest {
     }
 
     /**
-     * Partition -1 lets the producer's partitioner choose. Pinning the source partition would
-     * fail outright whenever the DLT has fewer partitions than the topic it shadows.
+     * A partição -1 deixa o particionador do produtor escolher. Fixar a partição de origem
+     * falharia de imediato sempre que o DLT tivesse menos partições que o tópico que ele espelha.
      */
     @Test
     fun `does not pin the dead letter record to the source partition`() {

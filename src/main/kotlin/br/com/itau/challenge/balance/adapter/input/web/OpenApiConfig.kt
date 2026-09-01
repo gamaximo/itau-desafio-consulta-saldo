@@ -16,13 +16,14 @@ class OpenApiConfig {
                 .version("v1")
                 .description(
                     """
-                    Returns the most recent balance of an account.
+                    Retorna o saldo mais atual de uma conta.
 
-                    Balances are projected from the `transacoes-financeiras-processadas` Kafka
-                    topic, not computed by this service: each event carries the balance the
-                    authorizer settled, and the newest event wins. Events are ordered by their
-                    microsecond timestamp rather than by arrival, so a late or duplicated
-                    message never rolls a balance backwards.
+                    Os saldos são projetados a partir do tópico Kafka
+                    `transacoes-financeiras-processadas`, e não calculados por este serviço: cada
+                    evento carrega o saldo que o autorizador liquidou, e o evento mais recente
+                    prevalece. Os eventos são ordenados pelo timestamp em microssegundos, e não
+                    pela ordem de chegada, de modo que uma mensagem atrasada ou duplicada nunca
+                    faz um saldo retroceder.
                     """.trimIndent(),
                 ),
         )

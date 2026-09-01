@@ -25,10 +25,10 @@ class TransactionProcessingMetricsTest {
     }
 
     /**
-     * Every outcome is registered up front, not lazily on first occurrence. A counter that only
-     * appears once it fires is a trap for alerting: `rate(...) == 0` and "series does not
-     * exist" are different conditions, and a dashboard built on the missing series silently
-     * shows nothing instead of zero.
+     * Todos os resultados são registrados na inicialização, e não preguiçosamente na primeira
+     * ocorrência. Um contador que só aparece depois de disparar é uma armadilha para alertas:
+     * `rate(...) == 0` e "a série não existe" são condições diferentes, e um dashboard montado
+     * sobre a série ausente mostra nada em silêncio, em vez de mostrar zero.
      */
     @Test
     fun `registers a counter for every outcome before any event arrives`() {

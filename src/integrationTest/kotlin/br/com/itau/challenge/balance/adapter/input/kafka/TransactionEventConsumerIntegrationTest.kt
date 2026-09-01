@@ -16,11 +16,11 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Drives the real listener against a real broker and a real DynamoDB: a message is published
- * and nothing is invoked directly — the assertion is that the running application consumed it
- * and projected the balance on its own.
+ * Exercita o listener real contra um broker real e um DynamoDB real: uma mensagem é publicada e
+ * nada é invocado diretamente — o que se verifica é que a aplicação em execução a consumiu e
+ * projetou o saldo por conta própria.
  *
- * Requires live infrastructure — run with `make integration-test`.
+ * Exige infraestrutura de verdade — rode com `make integration-test`.
  */
 @SpringBootTest
 class TransactionEventConsumerIntegrationTest(
@@ -55,7 +55,7 @@ class TransactionEventConsumerIntegrationTest(
         }
         """.trimIndent()
 
-    /** Polls until [condition] holds or the deadline passes, so the test never sleeps blindly. */
+    /** Faz polling até obter um valor ou estourar o prazo, para que o teste nunca durma às cegas. */
     private fun <T> awaitValue(
         timeout: Duration = Duration.ofSeconds(30),
         supplier: () -> T?,
@@ -80,9 +80,10 @@ class TransactionEventConsumerIntegrationTest(
     }
 
     /**
-     * The end-to-end version of the ordering guarantee: three events for one account, published
-     * newest-first, with no Kafka key — so they spread across partitions and are consumed
-     * concurrently. The balance must still settle on the newest one.
+     * A versão ponta a ponta da garantia de ordenação: três eventos para uma única conta,
+     * publicados do mais novo para o mais antigo e sem chave Kafka — portanto espalhados entre
+     * partições e consumidos concorrentemente. Ainda assim o saldo tem que assentar no mais
+     * recente.
      */
     @Test
     fun `settles on the newest event even when older ones arrive later`() {
@@ -95,8 +96,9 @@ class TransactionEventConsumerIntegrationTest(
         val stored = awaitValue { accountBalanceProvider.findByAccountId(accountId) }
         assertNotNull(stored)
 
-        // Give the two older events room to be consumed before asserting they changed nothing;
-        // otherwise the assertion could pass simply because they had not arrived yet.
+        // Dá espaço para os dois eventos mais antigos serem consumidos antes de verificar que
+        // não mudaram nada; caso contrário a verificação passaria apenas porque eles ainda não
+        // tinham chegado.
         Thread.sleep(2_000)
 
         val settled = assertNotNull(accountBalanceProvider.findByAccountId(accountId))
@@ -118,8 +120,8 @@ class TransactionEventConsumerIntegrationTest(
     }
 
     /**
-     * An unprocessable payload must reach the dead letter topic without ever touching the
-     * balance, and without stalling the partition it arrived on.
+     * Um payload inprocessável precisa chegar ao dead letter topic sem nunca tocar o saldo, e sem
+     * travar a partição em que chegou.
      */
     @Test
     fun `dead-letters an unprocessable event and leaves the balance untouched`() {
@@ -140,9 +142,9 @@ class TransactionEventConsumerIntegrationTest(
     }
 
     private fun consumeDeadLetters(): List<String> {
-        // A throwaway group id each time, so every call reads the topic from the beginning
-        // instead of resuming a committed offset. `auto-offset-reset=earliest` comes from the
-        // application's own consumer configuration.
+        // Um group id descartável a cada chamada, para que toda leitura comece do início do
+        // tópico em vez de retomar um offset commitado. O `auto-offset-reset=earliest` vem da
+        // própria configuração de consumidor da aplicação.
         val consumer =
             consumerFactory.createConsumer("dlt-assertions-${UUID.randomUUID()}", null).apply {
                 subscribe(listOf("$topic.DLT"))

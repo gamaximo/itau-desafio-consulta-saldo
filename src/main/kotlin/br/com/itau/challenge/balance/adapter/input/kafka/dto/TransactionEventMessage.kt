@@ -5,15 +5,16 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import java.math.BigDecimal
 
 /**
- * Wire shape of a message on `transacoes-financeiras-processadas`.
+ * Formato de uma mensagem no tópico `transacoes-financeiras-processadas`.
  *
- * Every field is nullable even though the contract says otherwise: this is untrusted input off
- * a topic, and modelling it as non-null would let Jackson throw a deserialization error deep
- * in the parser instead of letting the mapper report *which* field is missing. The mapping to
- * the domain is where absence becomes a precise, dead-letterable error.
+ * Todos os campos são nulláveis mesmo que o contrato diga o contrário: isto é entrada não
+ * confiável vinda de um tópico, e modelá-la como não-nula deixaria o Jackson lançar um erro de
+ * desserialização lá no fundo do parser, em vez de permitir que o mapper informe *qual* campo
+ * está faltando. É no mapeamento para o domínio que a ausência vira um erro preciso e passível
+ * de ir para o dead letter topic.
  *
- * Unknown properties are ignored so that a producer adding a field — a routine, backward
- * compatible change upstream — cannot take this consumer down.
+ * Propriedades desconhecidas são ignoradas para que um produtor que adicione um campo — mudança
+ * rotineira e retrocompatível do lado dele — não consiga derrubar este consumidor.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class TransactionEventMessage(
@@ -25,8 +26,8 @@ data class TransactionEventMessage(
 data class TransactionMessage(
     val id: String? = null,
     val type: String? = null,
-    // BigDecimal, not Double: Jackson would otherwise bind 97.07 to the nearest binary double
-    // and the exact decimal would be lost before the domain ever sees it.
+    // BigDecimal, não Double: caso contrário o Jackson vincularia 97.07 ao double binário mais
+    // próximo e o decimal exato se perderia antes mesmo de o domínio ver o valor.
     val amount: BigDecimal? = null,
     val currency: String? = null,
     val status: String? = null,

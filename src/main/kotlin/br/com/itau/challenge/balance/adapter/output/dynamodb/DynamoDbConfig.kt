@@ -30,22 +30,23 @@ class DynamoDbConfig {
             ).overrideConfiguration(
                 ClientOverrideConfiguration
                     .builder()
-                    // Both timeouts are set explicitly because the SDK default for
-                    // `apiCallTimeout` is *unbounded*. Without it, a DynamoDB partition that
-                    // stops answering — without resetting the connection — parks a Tomcat
-                    // worker thread forever; enough of those and the whole API stops serving,
-                    // health check included, over a dependency that is only degraded.
+                    // Os dois timeouts são definidos explicitamente porque o padrão do SDK para
+                    // `apiCallTimeout` é *ilimitado*. Sem ele, uma partição do DynamoDB que para
+                    // de responder — sem derrubar a conexão — prende uma thread do Tomcat para
+                    // sempre; algumas dessas e a API inteira deixa de atender, health check
+                    // incluído, por causa de uma dependência que está apenas degradada.
                     //
-                    // apiCallAttemptTimeout bounds a single HTTP attempt, apiCallTimeout bounds
-                    // the call including the SDK's own retries. Keeping the former well under
-                    // the latter is what leaves room for those retries to actually happen.
+                    // apiCallAttemptTimeout limita uma tentativa HTTP isolada; apiCallTimeout
+                    // limita a chamada inteira, incluindo os retries do próprio SDK. Manter o
+                    // primeiro bem abaixo do segundo é o que deixa espaço para esses retries
+                    // realmente acontecerem.
                     .apiCallAttemptTimeout(Duration.ofMillis(apiCallAttemptTimeoutMs))
                     .apiCallTimeout(Duration.ofMillis(apiCallTimeoutMs))
-                    // The SDK's default retry strategy (3 attempts, exponential backoff with
-                    // jitter, only on throttling and transient errors) is kept deliberately —
-                    // it already implements the retry/backoff pattern correctly, and a
-                    // conditional-write rejection is not a retryable error, so it is never
-                    // retried by mistake.
+                    // A política de retry padrão do SDK (3 tentativas, backoff exponencial com
+                    // jitter, apenas para throttling e erros transitórios) é mantida
+                    // deliberadamente — ela já implementa o padrão de retry/backoff corretamente,
+                    // e uma rejeição de escrita condicional não é um erro retentável, então nunca
+                    // é retentada por engano.
                     .build(),
             ).build()
 }

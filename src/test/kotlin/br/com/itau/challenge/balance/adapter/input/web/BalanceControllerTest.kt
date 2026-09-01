@@ -28,8 +28,8 @@ class BalanceControllerTest(
     @MockitoBean
     private lateinit var getAccountBalanceUseCase: GetAccountBalanceUseCase
 
-    // The driven ports are mocked away so the web slice never reaches DynamoDB, and the context
-    // starts without any infrastructure behind it.
+    // As portas de saída são mockadas para que a fatia web nunca chegue ao DynamoDB, e o
+    // contexto suba sem nenhuma infraestrutura por trás.
     @MockitoBean
     private lateinit var accountBalanceProvider: AccountBalanceProvider
 
@@ -60,9 +60,9 @@ class BalanceControllerTest(
     }
 
     /**
-     * The offset must be rendered, not assumed. A response of `15:02:44Z` would be the same
-     * instant but a different contract from the one the challenge specifies, and a consumer
-     * parsing it as local time would be three hours off.
+     * O offset precisa ser renderizado, não presumido. Uma resposta `15:02:44Z` seria o mesmo
+     * instante, mas um contrato diferente do que o desafio especifica, e um consumidor que a
+     * interpretasse como horário local erraria por três horas.
      */
     @Test
     fun `renders updated_at with an explicit offset`() {
@@ -75,9 +75,9 @@ class BalanceControllerTest(
     }
 
     /**
-     * The fractional part must always be six digits. With the stock ISO formatter this case
-     * renders as `.4848` and a whole second renders with no fraction at all, so a consumer
-     * parsing a fixed layout breaks on whichever variant it meets second.
+     * A parte fracionária precisa ter sempre seis dígitos. Com o formatador ISO padrão, este caso
+     * sai como `.4848` e um segundo cheio sai sem fração nenhuma, então um consumidor que
+     * interprete um layout fixo quebra na variante que encontrar por segundo.
      */
     @Test
     fun `always renders six fractional digits`() {
@@ -90,7 +90,7 @@ class BalanceControllerTest(
         }
     }
 
-    /** A balance landing exactly on a whole second must still carry the fraction. */
+    /** Um saldo que caia exatamente num segundo cheio ainda precisa carregar a fração. */
     @Test
     fun `renders the fraction even for a whole second`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
@@ -116,8 +116,8 @@ class BalanceControllerTest(
     }
 
     /**
-     * A malformed identifier is rejected by the framework before the use case runs — which is
-     * why this expectation does not stub anything.
+     * Um identificador malformado é rejeitado pelo framework antes de o caso de uso rodar — por
+     * isso esta expectativa não faz stub de nada.
      */
     @Test
     fun `returns 400 for an identifier that is not a UUID`() {
@@ -129,8 +129,8 @@ class BalanceControllerTest(
     }
 
     /**
-     * 503, not 500: it tells the caller that retrying is the correct response. A generic 500
-     * would push an operator to investigate this service when the fault is downstream.
+     * 503, e não 500: informa a quem chamou que retentar é a resposta correta. Um 500 genérico
+     * levaria um operador a investigar este serviço quando a falha está na dependência.
      */
     @Test
     fun `returns 503 when the balance store is unavailable`() {
@@ -144,7 +144,7 @@ class BalanceControllerTest(
         }
     }
 
-    /** The internal failure message must not reach the caller. */
+    /** A mensagem interna de falha não pode chegar a quem chamou. */
     @Test
     fun `does not leak internal failure details`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))

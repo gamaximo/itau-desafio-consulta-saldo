@@ -12,23 +12,23 @@ import org.springframework.stereotype.Service
 class ProcessTransactionService(
     private val accountBalanceRepository: AccountBalanceRepository,
     // --- balance.apply-declined-transactions -------------------------------------------------
-    // Should a DECLINED transaction update the stored balance?
+    // Uma transação DECLINED deve atualizar o saldo armazenado?
     //
-    // It is genuinely ambiguous, so it is a flag rather than a hardcoded rule.
+    // É genuinamente ambíguo, por isso virou flag em vez de regra fixa no código.
     //
-    // Default `true`, because a declined transaction still carries a valid balance snapshot:
-    // the authorizer evaluated the account at that microsecond and reported what the balance
-    // was. Refusing an insufficient-funds debit does not move money, but it does not make the
-    // reported balance wrong either. Dropping those events would mean ignoring the freshest
-    // reading the system has — and for an account whose transactions are mostly declined, the
-    // stored balance would go stale for no good reason.
+    // O padrão é `true`, porque uma transação recusada continua carregando um snapshot de saldo
+    // válido: o autorizador avaliou a conta naquele microssegundo e informou qual era o saldo.
+    // Recusar um débito por saldo insuficiente não move dinheiro, mas também não torna o saldo
+    // informado incorreto. Descartar esses eventos significaria ignorar a leitura mais recente
+    // que o sistema tem — e, numa conta cujas transações são majoritariamente recusadas, o saldo
+    // armazenado envelheceria sem um bom motivo.
     //
-    // Set to `false` to project approved transactions only. That is the more conservative
-    // reading — "balance changes only when money moves" — and is the right setting if the
-    // upstream authorizer is ever found to emit a pre-authorization balance on declines
-    // instead of the settled one. Under `false` the version stored is the last APPROVED
-    // timestamp, so a later APPROVED event still applies cleanly; correctness is preserved
-    // either way, only freshness differs.
+    // Configure como `false` para projetar apenas transações aprovadas. Essa é a leitura mais
+    // conservadora — "o saldo muda quando o dinheiro se move" — e é o ajuste correto caso algum
+    // dia se constate que o autorizador emite o saldo pré-autorização nas recusas, em vez do
+    // saldo liquidado. Com `false`, a versão armazenada passa a ser a do último APPROVED, então
+    // um APPROVED posterior continua sendo aplicado normalmente; a corretude se mantém nos dois
+    // modos, muda apenas o frescor.
     // -----------------------------------------------------------------------------------------
     @Value("\${balance.apply-declined-transactions}") private val applyDeclinedTransactions: Boolean,
 ) : ProcessTransactionUseCase {

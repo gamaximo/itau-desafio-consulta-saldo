@@ -10,16 +10,16 @@ import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 
 /**
- * Turns every failure into RFC 7807 `application/problem+json`.
+ * Converte toda falha em `application/problem+json` (RFC 7807).
  *
- * The API is consumed by other systems, so an error has to be as machine-readable as a
- * success. A caller must be able to tell "this account does not exist" (never retry) from
- * "the store is unavailable" (retry shortly) from "your identifier is malformed" (fix the
- * request) — from the status code alone, without parsing prose.
+ * A API é consumida por outros sistemas, então um erro precisa ser tão legível por máquina quanto
+ * um sucesso. Quem chama tem que conseguir distinguir "esta conta não existe" (nunca retente) de
+ * "o armazenamento está indisponível" (retente em breve) de "seu identificador está malformado"
+ * (corrija a requisição) — apenas pelo status code, sem interpretar texto.
  *
- * Internal details never cross this boundary: a stack trace or an AWS error message would leak
- * infrastructure topology to whoever calls the endpoint. They go to the logs, where they
- * belong, and the caller gets a stable, neutral message.
+ * Detalhes internos nunca cruzam esta fronteira: um stack trace ou uma mensagem da AWS vazaria a
+ * topologia da infraestrutura para quem chama o endpoint. Esses vão para os logs, que é o lugar
+ * deles, e quem chama recebe uma mensagem estável e neutra.
  */
 @RestControllerAdvice
 class BalanceExceptionHandler {
@@ -28,9 +28,9 @@ class BalanceExceptionHandler {
 
     @ExceptionHandler(AccountBalanceNotFoundException::class)
     fun handleNotFound(exception: AccountBalanceNotFoundException): ProblemDetail =
-        // Deliberately not logged as an error: querying an account with no projected balance
-        // is an ordinary outcome, and logging it would bury real failures under noise that any
-        // caller can trigger at will.
+        // Deliberadamente não logado como erro: consultar uma conta sem saldo projetado é um
+        // desfecho comum, e logar isso soterraria falhas reais sob ruído que qualquer chamador
+        // pode provocar à vontade.
         ProblemDetail
             .forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
@@ -55,8 +55,8 @@ class BalanceExceptionHandler {
     fun handleStorageUnavailable(exception: AccountBalanceStorageException): ProblemDetail {
         logger.error("Balance store unavailable", exception)
 
-        // 503 rather than 500: the request was valid and the failure is transient, which tells
-        // the caller that retrying is the correct response instead of alerting a human.
+        // 503 em vez de 500: a requisição era válida e a falha é transitória, o que informa a quem
+        // chamou que retentar é a resposta correta, em vez de acionar um humano.
         return ProblemDetail
             .forStatusAndDetail(
                 HttpStatus.SERVICE_UNAVAILABLE,

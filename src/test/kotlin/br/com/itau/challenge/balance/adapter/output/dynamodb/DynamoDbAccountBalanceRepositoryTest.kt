@@ -51,9 +51,9 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     /**
-     * Stored as an exact decimal string in a Number attribute. Routed through a Double, a value
-     * like 183.12 would be written as 183.11999999999999 and the stored balance would be wrong
-     * by a cent — the kind of defect that only shows up in a reconciliation months later.
+     * Armazenado como string decimal exata num atributo Number. Passando por um Double, um valor
+     * como 183.12 seria gravado como 183.11999999999999 e o saldo armazenado estaria errado por
+     * um centavo — o tipo de defeito que só aparece numa conciliação meses depois.
      */
     @Test
     fun `stores the amount without floating point drift`() {
@@ -64,7 +64,7 @@ class DynamoDbAccountBalanceRepositoryTest {
         assertEquals("183.12", capturedRequest().item()["balanceAmount"]?.n())
     }
 
-    /** Large values must not be written in scientific notation, which DynamoDB rejects. */
+    /** Valores grandes não podem ser gravados em notação científica, que o DynamoDB rejeita. */
     @Test
     fun `stores large amounts in plain notation`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
@@ -87,8 +87,9 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     /**
-     * `version` and `owner` are DynamoDB reserved words. Referencing them directly in the
-     * expression would fail to parse at runtime — and only at runtime, on the first write.
+     * `version` e `owner` são palavras reservadas do DynamoDB. Referenciá-las diretamente na
+     * expressão falharia na interpretação em tempo de execução — e só em tempo de execução, na
+     * primeira escrita.
      */
     @Test
     fun `aliases reserved attribute names`() {
@@ -102,9 +103,9 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     /**
-     * The core case for both duplicates and out-of-order events: a rejected condition is a
-     * normal `false`, never an exception. If this leaked as an error, every replayed message
-     * would be retried and then dead-lettered.
+     * O caso central tanto para duplicatas quanto para eventos fora de ordem: uma condição
+     * rejeitada é um `false` normal, nunca uma exceção. Se isso vazasse como erro, toda mensagem
+     * reenviada seria retentada e depois mandada para o DLT.
      */
     @Test
     fun `reports not-applied when the condition rejects the write`() {
@@ -115,8 +116,9 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     /**
-     * An infrastructure failure, by contrast, must surface — it is retryable, and swallowing it
-     * would commit the offset for an event that was never applied, losing the balance silently.
+     * Uma falha de infraestrutura, em contrapartida, precisa aparecer — ela é retentável, e
+     * engoli-la faria o offset ser commitado para um evento que nunca foi aplicado, perdendo o
+     * saldo em silêncio.
      */
     @Test
     fun `translates an SDK failure into a storage exception`() {
@@ -128,7 +130,7 @@ class DynamoDbAccountBalanceRepositoryTest {
         assertTrue(exception.message!!.contains(ACCOUNT_ID))
     }
 
-    /** Written for operators, never read back — but it still has to be there and be correct. */
+    /** Escrito para operadores, nunca lido de volta — mas ainda assim precisa existir e estar correto. */
     @Test
     fun `stores a human-readable copy of the update time`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())

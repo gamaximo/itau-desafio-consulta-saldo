@@ -1,28 +1,28 @@
 package br.com.itau.challenge.balance.domain.model
 
 /**
- * A settled transaction together with the account snapshot it produced — the full event
- * published on `transacoes-financeiras-processadas`.
+ * Uma transação liquidada junto com o snapshot da conta que ela produziu — o evento completo
+ * publicado em `transacoes-financeiras-processadas`.
  *
- * ### Why this service projects instead of accumulating
+ * ### Por que este serviço projeta em vez de acumular
  *
- * The authorizer ships `account.balance` already settled. Recomputing the balance here by
- * adding credits and subtracting debits would be strictly worse: it would require every event
- * to arrive exactly once and in order — neither of which Kafka guarantees across partitions —
- * and any gap would silently corrupt the balance forever. Projecting the authoritative
- * snapshot instead makes each event self-sufficient, which is what allows duplicates and
- * out-of-order delivery to be resolved by simply comparing versions.
+ * O autorizador envia `account.balance` já liquidado. Recalcular o saldo aqui, somando créditos
+ * e subtraindo débitos, seria estritamente pior: exigiria que cada evento chegasse exatamente
+ * uma vez e em ordem — nada disso é garantido pelo Kafka entre partições — e qualquer lacuna
+ * corromperia o saldo silenciosamente e para sempre. Projetar o snapshot autoritativo torna cada
+ * evento autossuficiente, e é isso que permite resolver duplicatas e entregas fora de ordem
+ * simplesmente comparando versões.
  */
 data class ProcessedTransaction(
     val transaction: Transaction,
     val account: Account,
 ) {
     /**
-     * Projects this event into the balance state to be persisted.
+     * Projeta este evento no estado de saldo a ser persistido.
      *
-     * The version is the transaction timestamp, which keeps the projection deterministic:
-     * reprocessing the topic from offset zero produces byte-identical items, no matter when
-     * the replay happens.
+     * A versão é o timestamp da transação, o que mantém a projeção determinística: reprocessar o
+     * tópico a partir do offset zero produz itens idênticos byte a byte, não importa quando o
+     * replay aconteça.
      */
     fun toAccountBalance(): AccountBalance =
         AccountBalance(

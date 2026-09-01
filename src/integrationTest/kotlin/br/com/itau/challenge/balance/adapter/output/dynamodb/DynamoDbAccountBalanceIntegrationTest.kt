@@ -17,14 +17,14 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * Exercises the conditional write against a real DynamoDB.
+ * Exercita a escrita condicional contra um DynamoDB real.
  *
- * These cases cannot be proven with a mocked client: whether `attribute_not_exists(...) OR
- * #version < :version` actually rejects an equal version is a question about DynamoDB's
- * expression evaluation, not about this code. A unit test asserting the expression string
- * proves the string; only this proves the behaviour.
+ * Estes casos não podem ser provados com um cliente mockado: se `attribute_not_exists(...) OR
+ * #version < :version` de fato rejeita uma versão igual é uma pergunta sobre a avaliação de
+ * expressões do DynamoDB, não sobre este código. Um teste unitário que verifica a string da
+ * expressão prova a string; só isto aqui prova o comportamento.
  *
- * Requires live infrastructure — run with `make integration-test`.
+ * Exige infraestrutura de verdade — rode com `make integration-test`.
  */
 class DynamoDbAccountBalanceIntegrationTest {
 
@@ -40,7 +40,7 @@ class DynamoDbAccountBalanceIntegrationTest {
     private val repository = DynamoDbAccountBalanceRepository(client, tableName)
     private val provider = DynamoDbAccountBalanceProvider(client, tableName)
 
-    /** A fresh account per test, so the cases stay independent of execution order. */
+    /** Uma conta nova por teste, para que os casos fiquem independentes da ordem de execução. */
     private fun newAccountId() = UUID.randomUUID().toString()
 
     private fun balance(
@@ -82,7 +82,7 @@ class DynamoDbAccountBalanceIntegrationTest {
         assertEquals(BigDecimal("300.00"), assertNotNull(provider.findByAccountId(accountId)).balance.amount)
     }
 
-    /** Out-of-order delivery: a late event must not roll the balance backwards. */
+    /** Entrega fora de ordem: um evento atrasado não pode fazer o saldo retroceder. */
     @Test
     fun `rejects an older version and leaves the stored balance untouched`() {
         val accountId = newAccountId()
@@ -94,9 +94,9 @@ class DynamoDbAccountBalanceIntegrationTest {
     }
 
     /**
-     * Idempotency, and the reason the comparison is strict rather than `<=`. A replayed event
-     * carries an identical version, which is not *less than* the stored one, so it is rejected
-     * with no dedup table involved.
+     * Idempotência, e a razão de a comparação ser estrita em vez de `<=`. Um evento reenviado
+     * carrega uma versão idêntica, que não é *menor que* a armazenada, então é rejeitado sem
+     * nenhuma tabela de deduplicação envolvida.
      */
     @Test
     fun `rejects a byte-identical replay of the same event`() {
@@ -113,9 +113,9 @@ class DynamoDbAccountBalanceIntegrationTest {
     }
 
     /**
-     * The convergence property that makes the whole design work: whatever order the events are
-     * applied in, the end state is the newest one. This shuffles the same three events and
-     * asserts the result is identical every time.
+     * A propriedade de convergência que faz todo o desenho funcionar: seja qual for a ordem em
+     * que os eventos são aplicados, o estado final é o mais recente. Este teste embaralha os
+     * mesmos três eventos e verifica que o resultado é idêntico todas as vezes.
      */
     @Test
     fun `converges to the newest version regardless of arrival order`() {

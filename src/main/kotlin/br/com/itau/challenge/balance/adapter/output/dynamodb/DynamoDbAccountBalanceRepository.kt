@@ -12,22 +12,22 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest
 
 /**
- * The condition that makes the whole ingestion safe.
+ * A condição que torna toda a ingestão segura.
  *
- * A `PutItem` carrying this expression is applied only when the account has never been seen,
- * or when the stored version is **strictly** older than the incoming one. DynamoDB evaluates
- * it inside the write, on the partition that owns the item, so it is atomic even when several
- * consumer instances hit the same account at the same microsecond.
+ * Um `PutItem` com esta expressão só é aplicado quando a conta nunca foi vista, ou quando a
+ * versão armazenada é **estritamente** mais antiga que a versão que está chegando. O DynamoDB
+ * avalia a condição dentro da escrita, na partição dona do item, então ela é atômica mesmo com
+ * várias instâncias do consumidor gravando a mesma conta no mesmo microssegundo.
  *
- * Because the comparison is strict, it handles three cases with one rule:
- *  - **out-of-order** — a late event carries an older version and is rejected;
- *  - **duplicate** — a replayed event carries the *same* version, which is not `<`, so it is
- *    rejected too. That is idempotency, with no separate dedup table to keep and expire;
- *  - **concurrent** — of two writes racing for the same account, the older one loses
- *    regardless of which reaches the partition first.
+ * Por ser uma comparação estrita, ela trata três casos com uma única regra:
+ *  - **fora de ordem** — um evento atrasado carrega uma versão mais antiga e é rejeitado;
+ *  - **duplicata** — um evento reenviado carrega a *mesma* versão, que não é `<`, então também é
+ *    rejeitado. Isso é idempotência, sem nenhuma tabela de deduplicação para manter e expirar;
+ *  - **concorrência** — de duas escritas disputando a mesma conta, a mais antiga perde,
+ *    independentemente de qual chegar primeiro à partição.
  *
- * Attribute names are aliased through `#` placeholders because both `version` and `owner` are
- * DynamoDB reserved words and would otherwise fail to parse.
+ * Os nomes de atributo passam por placeholders `#` porque tanto `version` quanto `owner` são
+ * palavras reservadas do DynamoDB e, sem isso, a expressão nem seria interpretada.
  */
 private const val NEWER_VERSION_ONLY =
     "attribute_not_exists(#accountId) OR #version < :version"
@@ -64,13 +64,14 @@ class DynamoDbAccountBalanceRepository(
             dynamoDbClient.putItem(request)
             true
         } catch (_: ConditionalCheckFailedException) {
-            // Not an error: the stored balance is already at or ahead of this event. Swallowing
-            // it here — rather than letting it reach the consumer's error handler — is what
-            // keeps duplicates and late deliveries from being retried and then dead-lettered.
+            // Não é erro: o saldo armazenado já está na mesma versão ou à frente deste evento.
+            // Engolir a exceção aqui — em vez de deixá-la chegar ao error handler do consumidor —
+            // é o que impede duplicatas e entregas atrasadas de serem retentadas e, depois,
+            // mandadas para o dead letter topic.
             //
-            // Caught before SdkException on purpose: it is a subclass, and reversing the order
-            // would silently turn every rejected duplicate into a retryable infrastructure
-            // failure.
+            // Capturada antes de SdkException de propósito: ela é uma subclasse, e inverter a
+            // ordem transformaria silenciosamente toda duplicata rejeitada numa falha de
+            // infraestrutura retentável.
             false
         } catch (exception: SdkException) {
             throw AccountBalanceStorageException(

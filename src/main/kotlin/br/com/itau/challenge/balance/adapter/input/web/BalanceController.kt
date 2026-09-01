@@ -22,26 +22,27 @@ class BalanceController(
     private val zoneId = ZoneId.of(timeZone)
 
     /**
-     * Declaring the path variable as [UUID] rather than [String] pushes format validation into
-     * the framework: a malformed identifier is rejected with 400 before any use case runs, and
-     * before a single request reaches DynamoDB. Only well-formed identifiers can ever produce
-     * a 404, which keeps "malformed" and "not found" from collapsing into the same answer.
+     * Declarar a variável de path como [UUID], e não como [String], joga a validação de formato
+     * para dentro do framework: um identificador malformado é rejeitado com 400 antes de qualquer
+     * caso de uso rodar, e antes de uma única requisição chegar ao DynamoDB. Só identificadores
+     * bem formados conseguem produzir um 404, o que impede que "malformado" e "não encontrado"
+     * virem a mesma resposta.
      */
     @Operation(
-        summary = "Get the current balance of an account",
+        summary = "Consulta o saldo atual de uma conta",
         description =
-            "Returns the balance from the most recent transaction settled for this account, " +
-                "as projected from the transactions topic.",
+            "Retorna o saldo da transação mais recente liquidada para esta conta, " +
+                "conforme projetado a partir do tópico de transações.",
     )
     @ApiResponses(
-        ApiResponse(responseCode = "200", description = "Current balance of the account"),
-        ApiResponse(responseCode = "400", description = "The account identifier is not a valid UUID"),
-        ApiResponse(responseCode = "404", description = "No balance has been projected for this account"),
-        ApiResponse(responseCode = "503", description = "The balance store is unavailable — retry"),
+        ApiResponse(responseCode = "200", description = "Saldo atual da conta"),
+        ApiResponse(responseCode = "400", description = "O identificador da conta não é um UUID válido"),
+        ApiResponse(responseCode = "404", description = "Nenhum saldo foi projetado para esta conta"),
+        ApiResponse(responseCode = "503", description = "O armazenamento de saldos está indisponível — retente"),
     )
     @GetMapping("/balances/{accountId}", produces = [MediaType.APPLICATION_JSON_VALUE])
     fun getBalance(
-        @Parameter(description = "Account identifier", example = "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975")
+        @Parameter(description = "Identificador da conta", example = "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975")
         @PathVariable accountId: UUID,
     ): BalanceResponse = getAccountBalanceUseCase.getBalance(accountId.toString()).toResponse(zoneId)
 }

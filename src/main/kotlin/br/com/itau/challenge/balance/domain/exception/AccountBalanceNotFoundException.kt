@@ -1,9 +1,9 @@
 package br.com.itau.challenge.balance.domain.exception
 
 /**
- * No balance has been projected for this account yet — either the account does not exist,
- * or no transaction for it has been consumed so far. The API cannot tell those apart, since
- * the account lifecycle is owned by the authorizer, not by this service.
+ * Nenhum saldo foi projetado para esta conta ainda — ou a conta não existe, ou nenhuma
+ * transação dela foi consumida até agora. A API não consegue distinguir os dois casos, já que o
+ * ciclo de vida da conta pertence ao autorizador, não a este serviço.
  */
 class AccountBalanceNotFoundException(
     val accountId: String,

@@ -25,9 +25,9 @@ class ProcessedTransactionTest {
     }
 
     /**
-     * The stored balance comes from the account snapshot, never from the transaction amount.
-     * This test pins that: a 97.07 credit on an account reporting 183.12 must store 183.12.
-     * Storing the transaction amount would be the classic misreading of this payload.
+     * O saldo armazenado vem do snapshot da conta, nunca do montante da transação. Este teste
+     * fixa isso: um crédito de 97.07 numa conta que reporta 183.12 tem que armazenar 183.12.
+     * Armazenar o montante da transação seria a leitura equivocada clássica deste payload.
      */
     @Test
     fun `stores the account snapshot balance, not the transaction amount`() {
@@ -41,9 +41,9 @@ class ProcessedTransactionTest {
     }
 
     /**
-     * The version must come from the transaction timestamp and not from the wall clock, or the
-     * projection would stop being deterministic: replaying the topic would produce different
-     * versions each time, and comparing them across a replay would be meaningless.
+     * A versão precisa vir do timestamp da transação, e não do relógio da máquina, ou a projeção
+     * deixaria de ser determinística: reprocessar o tópico produziria versões diferentes a cada
+     * vez, e compará-las entre replays não significaria nada.
      */
     @Test
     fun `takes its version from the transaction timestamp`() {

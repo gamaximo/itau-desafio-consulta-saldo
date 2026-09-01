@@ -1,26 +1,26 @@
 package br.com.itau.challenge.balance.domain.model
 
 /**
- * What the pipeline did with a valid event. Every value here is a **success** — none of them
- * is an error worth retrying — but they are counted separately so that operators can tell a
- * healthy stream from a broken one.
+ * O que o pipeline fez com um evento válido. Todo valor aqui é um **sucesso** — nenhum deles é
+ * erro que valha retentar — mas são contados separadamente para que operadores consigam
+ * distinguir um fluxo saudável de um quebrado.
  *
- * A rising [STALE_DISCARDED] rate, for instance, is normal under partition rebalancing but
- * suspicious if it persists: it would suggest a producer replaying old offsets.
+ * Uma taxa crescente de [STALE_DISCARDED], por exemplo, é normal durante rebalanceamento de
+ * partições, mas suspeita se persistir: sugeriria um produtor reenviando offsets antigos.
  */
 enum class ProcessingOutcome {
-    /** The snapshot was newer than the stored one and became the current balance. */
+    /** O snapshot era mais recente que o armazenado e passou a ser o saldo atual. */
     APPLIED,
 
     /**
-     * The stored balance was already at or ahead of this event's version, so the write was
-     * rejected by the condition. This covers both out-of-order delivery and duplicates.
+     * O saldo armazenado já estava na mesma versão ou à frente deste evento, então a escrita foi
+     * rejeitada pela condição. Cobre tanto entrega fora de ordem quanto duplicatas.
      */
     STALE_DISCARDED,
 
     /**
-     * The transaction was declined and the service is configured not to project declined
-     * transactions. See `balance.apply-declined-transactions`.
+     * A transação foi recusada e o serviço está configurado para não projetar transações
+     * recusadas. Veja `balance.apply-declined-transactions`.
      */
     DECLINED_SKIPPED,
 }

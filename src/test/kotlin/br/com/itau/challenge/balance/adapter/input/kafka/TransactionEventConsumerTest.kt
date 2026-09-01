@@ -66,9 +66,10 @@ class TransactionEventConsumerTest {
     }
 
     /**
-     * Each outcome takes a different logging branch, so all three are exercised — a broken
-     * format string in the rarely-hit branch would only ever surface in production, at exactly
-     * the moment someone is relying on that log line to explain a wrong balance.
+     * Cada resultado passa por um ramo diferente de log, então os três são exercitados — uma
+     * string de formato quebrada no ramo raramente atingido só apareceria em produção,
+     * exatamente no momento em que alguém depende daquela linha de log para explicar um saldo
+     * errado.
      */
     @Test
     fun `records every outcome the use case can report`() {
@@ -100,9 +101,9 @@ class TransactionEventConsumerTest {
     }
 
     /**
-     * The exception must escape the listener. Swallowing it here would commit the offset and
-     * silently drop the message — the error handler never runs, and the event reaches neither
-     * the balance nor the dead letter topic.
+     * A exceção precisa escapar do listener. Engoli-la aqui faria o offset ser commitado e a
+     * mensagem descartada em silêncio — o error handler nunca rodaria, e o evento não chegaria
+     * nem ao saldo nem ao dead letter topic.
      */
     @Test
     fun `lets the rejection propagate so the error handler can dead-letter it`() {

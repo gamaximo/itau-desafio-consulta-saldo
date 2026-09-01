@@ -4,11 +4,12 @@ import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventExc
 import java.math.BigDecimal
 
 /**
- * A financial transaction as decided by the authorizer.
+ * Uma transação financeira conforme decidida pelo autorizador.
  *
- * [timestamp] is the epoch time in **microseconds** at which the authorizer settled this
- * transaction. It is the ordering key of the whole system: Kafka only guarantees order within
- * a partition, so the timestamp — not the arrival order — decides which snapshot is newer.
+ * [timestamp] é o instante, em **microssegundos** desde o epoch, em que o autorizador liquidou
+ * esta transação. É a chave de ordenação de todo o sistema: o Kafka só garante ordem dentro de
+ * uma partição, então quem decide qual snapshot é mais recente é o timestamp, não a ordem de
+ * chegada.
  */
 data class Transaction(
     val id: String,

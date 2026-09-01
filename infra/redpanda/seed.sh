@@ -13,10 +13,10 @@ until rpk cluster info --brokers "${BROKERS}" >/dev/null 2>&1; do
 done
 echo "Redpanda broker is ready."
 
-# Topic auto-creation is disabled by config.sh, so both topics are created explicitly here.
-# The application also declares them as KafkaAdmin beans — whichever comes first wins and the
-# other is a no-op. Creating them here as well means `make kafka-up` gives a usable broker even
-# when the application is not running.
+# A criação automática de tópicos é desabilitada pelo config.sh, então os dois tópicos são
+# criados explicitamente aqui. A aplicação também os declara como beans do KafkaAdmin — quem
+# chegar primeiro cria, e o outro vira no-op. Criá-los aqui também significa que `make kafka-up`
+# entrega um broker utilizável mesmo com a aplicação parada.
 create_topic() {
   local name="$1"
   if rpk topic describe "${name}" --brokers "${BROKERS}" >/dev/null 2>&1; then
@@ -29,12 +29,12 @@ create_topic() {
 
 create_topic "${TOPIC_NAME}"
 
-# The dead letter topic must exist up front. Discovering it is missing at the moment a bad
-# message needs quarantining is the worst possible time: the recoverer would fail, the error
-# handler would retry, and one malformed payload would stall the partition indefinitely.
+# O dead letter topic precisa existir de antemão. Descobrir que ele falta no momento em que uma
+# mensagem ruim precisa ser posta em quarentena é o pior instante possível: o recoverer falharia,
+# o error handler retentaria, e um único payload malformado travaria a partição indefinidamente.
 create_topic "${DLT_NAME}"
 
-# No messages are published here. Unlike a lookup table, an empty balance topic is a valid
-# starting state — use `make kafka-produce-transactions-events` for random traffic, or
-# `make kafka-produce-scenario` for the ordering and duplicate cases.
+# Nenhuma mensagem é publicada aqui. Diferente de uma tabela de consulta, um tópico de saldos
+# vazio é um estado inicial válido — use `make kafka-produce-transactions-events` para tráfego
+# aleatório, ou `make kafka-produce-scenario` para os casos de ordenação e duplicata.
 echo "Topics ready: '${TOPIC_NAME}' and '${DLT_NAME}'."
