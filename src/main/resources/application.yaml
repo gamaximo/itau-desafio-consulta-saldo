@@ -1,18 +1,104 @@
 spring:
   application:
-    name: itau-code-challange-starter-kit
+    name: itau-balance-query-api
+  lifecycle:
+    # Ao receber SIGTERM — deploy, escala, reciclagem de pod — o Tomcat para de aceitar novas
+    # conexões e espera as requisições em voo terminarem, e o container do Kafka termina o lote
+    # que está processando antes de commitar o offset. Sem isto (o padrão do Boot é `immediate`),
+    # todo deploy devolve erro a quem estava sendo atendido naquele instante.
+    #
+    # 20s é folgado para o nosso perfil: a requisição mais lenta é limitada pelo apiCallTimeout do
+    # DynamoDB (3s) e o lote do Kafka pelo backoff de retry (~3,5s).
+    timeout-per-shutdown-phase: 20s
+  mvc:
+    problemdetails:
+      # Faz o próprio Spring MVC responder em RFC 7807 nas exceções que ele trata sozinho —
+      # rota inexistente, método não suportado, media type inválido. Sem isto, a API fala dois
+      # dialetos de erro: `application/problem+json` nos casos que tratamos e o formato legado
+      # `{"timestamp","status","error","path"}` em todo o resto. Um consumidor com parser de
+      # problem+json quebraria ao errar a URL.
+      enabled: true
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:19092}
     consumer:
-      group-id: ${KAFKA_CONSUMER_GROUP_ID:hello-greeting-template-consumer}
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:balance-transaction-consumer}
       auto-offset-reset: earliest
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    # O producer existe apenas para publicar eventos rejeitados no dead letter topic.
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    listener:
+      # Uma thread de consumo por partição. Ir além da quantidade de partições não traz ganho —
+      # as threads extras ficariam ociosas, já que uma partição é atribuída a um único consumidor
+      # do grupo por vez.
+      concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}
 
 dynamodb:
   endpoint: ${DYNAMODB_ENDPOINT:http://localhost:8000}
   region: ${DYNAMODB_REGION:us-east-1}
-  table-name: ${GREETING_TABLE_NAME:GreetingMessages}
+  table-name: ${BALANCE_TABLE_NAME:AccountBalances}
+  # Limita uma tentativa HTTP isolada contra o DynamoDB.
+  api-call-attempt-timeout-ms: ${DYNAMODB_API_CALL_ATTEMPT_TIMEOUT_MS:1000}
+  # Limita a chamada inteira, retries incluídos. Precisa ficar confortavelmente acima do timeout
+  # de tentativa, senão os retries do SDK seriam cortados antes mesmo de acontecerem.
+  api-call-timeout-ms: ${DYNAMODB_API_CALL_TIMEOUT_MS:3000}
 
-greeting-templates:
-  topic-name: ${GREETING_TEMPLATES_TOPIC:greeting-templates}
+transactions:
+  topic-name: ${TRANSACTIONS_TOPIC:transacoes-financeiras-processadas}
+  # Três partições: o bastante para paralelizar a ingestão entre as threads do consumidor, e
+  # pouco o suficiente para continuar legível localmente. A corretude não depende deste número —
+  # a ordenação é resolvida pela comparação de versões na escrita, não pela atribuição de
+  # partições.
+  partitions: ${TRANSACTIONS_TOPIC_PARTITIONS:3}
+
+balance:
+  # Define se uma transação DECLINED atualiza o saldo armazenado. Veja ProcessTransactionService
+  # para o racional completo por trás do padrão.
+  apply-declined-transactions: ${APPLY_DECLINED_TRANSACTIONS:true}
+
+api:
+  # Fuso horário usado para renderizar `updated_at` na resposta. O instante em si é armazenado em
+  # UTC; daqui vem apenas o offset de apresentação.
+  time-zone: ${API_TIME_ZONE:America/Sao_Paulo}
+
+server:
+  # Ver `spring.lifecycle.timeout-per-shutdown-phase` para o racional.
+  shutdown: graceful
+
+logging:
+  structured:
+    format:
+      # Logs em JSON no formato Elastic Common Schema, para que `accountId` e `transaction` sejam
+      # campos pesquisáveis no agregador em vez de texto solto dentro de uma mensagem. Fica atrás
+      # de uma variável de ambiente com padrão vazio: em desenvolvimento o console continua legível
+      # por humanos, e o docker-compose liga o formato estruturado, como seria em produção.
+      console: ${LOG_FORMAT:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      # Liveness e readiness são probes separadas de propósito: um contêiner que perdeu o DynamoDB
+      # deve parar de receber tráfego (not ready) sem ser morto e reiniciado (still alive), já que
+      # reiniciar não conserta nada quando o problema é a dependência.
+      probes:
+        enabled: true
+      # O detalhamento completo fica exposto porque esta stack não tem autenticação na frente. Num
+      # ambiente real isto ficaria em `when-authorized`.
+      show-details: always
+      group:
+        # `dynamoDb` entra apenas na readiness. É o que faz a promessa acima valer: sem incluí-lo
+        # aqui, o indicador existiria mas a probe continuaria respondendo UP com o banco fora,
+        # porque o grupo readiness só considera o estado interno da aplicação.
+        readiness:
+          include: readinessState,dynamoDb
+        # A liveness permanece sem dependências externas, de propósito: se ela caísse junto com o
+        # DynamoDB, o orquestrador entraria em ciclo de reinício durante uma indisponibilidade do
+        # banco — trocando um problema por dois.
+        liveness:
+          include: livenessState

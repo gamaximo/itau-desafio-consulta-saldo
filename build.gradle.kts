@@ -8,7 +8,7 @@ plugins {
 
 group = "br.com.itau"
 version = "0.0.1-SNAPSHOT"
-description = "itau-code-challange-starter-kit"
+description = "Balance query API — Kafka ingestion + DynamoDB projection"
 
 java {
 	toolchain {
@@ -27,6 +27,16 @@ dependencies {
 	implementation("tools.jackson.module:jackson-module-kotlin")
 	implementation("software.amazon.awssdk:dynamodb")
 	implementation("org.springframework.boot:spring-boot-starter-kafka")
+	implementation("org.springframework.boot:spring-boot-starter-actuator")
+	// Versão fixada explicitamente: o springdoc não é gerenciado pelo BOM do Spring Boot, e 2.8.6
+	// é o release mais recente — ele mira Boot 3 / Jackson 2 enquanto este projeto roda Boot 4 /
+	// Jackson 3. A combinação funciona, e o OpenApiDocumentationTest verifica que ela continua
+	// funcionando, em vez de simplesmente confiar nisso.
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.6")
+	// Coletado pelo Prometheus em /actuator/prometheus. runtimeOnly porque nada no código
+	// referencia o registry diretamente — ele é ligado pela auto-configuração do actuator, o que
+	// mantém o backend de monitoração substituível sem tocar num único import.
+	runtimeOnly("io.micrometer:micrometer-registry-prometheus")
 	testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("com.lemonappdev:konsist:0.17.3")

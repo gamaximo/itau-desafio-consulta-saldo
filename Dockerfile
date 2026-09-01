@@ -17,5 +17,17 @@ RUN --mount=type=cache,target=/root/.gradle ./gradlew bootJar --no-daemon \
 FROM eclipse-temurin:21-jre AS runtime
 WORKDIR /app
 COPY --from=builder /workspace/app.jar app.jar
+
+# Roda com um usuário sem privilégios. Um processo que nunca precisa escrever fora do próprio heap
+# não tem motivo para ser root dentro do contêiner — se a aplicação for comprometida algum dia, o
+# raio de alcance para num usuário que não é dono de nada.
+RUN useradd --system --create-home --shell /usr/sbin/nologin appuser \
+    && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+
+# MaxRAMPercentage em vez de um -Xmx fixo: a JVM dimensiona o heap a partir do limite de memória
+# do contêiner, então a mesma imagem se comporta corretamente recebendo 512MB localmente ou 4GB em
+# produção, sem rebuild e sem flag específica por ambiente.
+ENTRYPOINT ["java", "-XX:MaxRAMPercentage=75.0", "-jar", "app.jar"]
