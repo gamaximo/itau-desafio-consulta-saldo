@@ -37,7 +37,7 @@ class Money(
             try {
                 Currency.getInstance(currency)
             } catch (_: IllegalArgumentException) {
-                throw InvalidTransactionEventException("Currency must be an ISO 4217 code, got '$currency'")
+                throw InvalidTransactionEventException("A moeda precisa ser um código ISO 4217, recebido '$currency'")
             } catch (_: NullPointerException) {
                 throw InvalidTransactionEventException("Currency must be an ISO 4217 code, got '$currency'")
             }
@@ -60,7 +60,7 @@ class Money(
                     amount.setScale(fractionDigits, RoundingMode.UNNECESSARY)
                 } catch (_: ArithmeticException) {
                     throw InvalidTransactionEventException(
-                        "Amount $amount carries more precision than $currency allows ($fractionDigits decimal places)",
+                        "O valor $amount tem mais precisão do que $currency permite ($fractionDigits casas decimais)",
                     )
                 }
             }

@@ -62,7 +62,7 @@ class BalanceExceptionHandler {
 
     @ExceptionHandler(AccountBalanceStorageException::class)
     fun handleStorageUnavailable(exception: AccountBalanceStorageException): ProblemDetail {
-        logger.error("Balance store unavailable", exception)
+        logger.error("Armazenamento de saldos indisponível", exception)
 
         // 503 em vez de 500: a requisição era válida e a falha é transitória, o que informa a quem
         // chamou que retentar é a resposta correta, em vez de acionar um humano.

@@ -37,7 +37,7 @@ internal fun deadLetterDestinationFor(
     exception: Exception,
 ): TopicPartition {
     deadLetterLogger.error(
-        "Dead-lettering unprocessable event: topic={} partition={} offset={} reason={}",
+        "Evento inprocessável enviado ao dead letter topic: tópico={} partição={} offset={} motivo={}",
         record.topic(),
         record.partition(),
         record.offset(),

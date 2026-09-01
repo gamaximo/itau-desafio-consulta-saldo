@@ -38,7 +38,7 @@ class UnexpectedErrorHandler {
         // ERROR com o stack trace completo, porque aqui ninguém sabe o que aconteceu: ao
         // contrário do 503, isto não é uma falha esperada de dependência, é algo que não foi
         // previsto e que alguém precisa investigar.
-        logger.error("Unexpected failure handling request", exception)
+        logger.error("Falha inesperada ao processar a requisição", exception)
 
         return ProblemDetail
             .forStatusAndDetail(

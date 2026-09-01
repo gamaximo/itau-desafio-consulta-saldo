@@ -338,15 +338,21 @@ primeira classe no agregador:
 
 ```json
 {
-  "message": "Stale event discarded, stored balance is already newer",
-  "account": "d96301ba-cf78-4381-bf98-22139beedfd2",
-  "transaction": "82d01c74-b29c-4676-82ce-8dacb0d169bc",
-  "version": "1788292375385205"
+  "message": "Evento obsoleto descartado: o saldo armazenado já é mais recente",
+  "account": "1277d415-4c97-482d-a363-18e18aea761d",
+  "owner": "83360aee-215b-47b3-b5a4-b3b4de10db77",
+  "transaction": "78010165-3c17-4040-a4a3-339f6dba72ac",
+  "version": "1788293030916214"
 }
 ```
 
-`account:d96301ba-…` vira uma consulta; procurar o mesmo UUID dentro de texto livre dependeria de
+`account:1277d415-…` vira uma consulta; procurar o mesmo UUID dentro de texto livre dependeria de
 regex e de a mensagem nunca mudar de formato.
+
+`owner` está ali porque investigações raramente começam pela conta: quem abre um chamado é o
+titular. Sem esse campo seria preciso primeiro descobrir quais contas são dele para só então
+filtrar o log — e é também a razão de não existir um GSI por `owner`: resolver isso no log custa
+um campo, resolver no banco custaria escrita em toda ingestão.
 
 **Log de acesso HTTP** (`RequestLoggingFilter`), uma linha por requisição com método, rota, status
 e duração — também no MDC. Sem ele existiriam apenas métricas agregadas, que não respondem à

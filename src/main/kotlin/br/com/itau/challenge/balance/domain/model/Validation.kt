@@ -16,7 +16,7 @@ internal fun requireUuid(
     try {
         UUID.fromString(value)
     } catch (_: IllegalArgumentException) {
-        throw InvalidTransactionEventException("$field must be a valid UUID, got '$value'")
+        throw InvalidTransactionEventException("$field precisa ser um UUID válido, recebido '$value'")
     }
     return value
 }
@@ -26,7 +26,7 @@ internal fun requirePositiveTimestamp(
     field: String,
 ): Long {
     if (value <= 0) {
-        throw InvalidTransactionEventException("$field must be a positive epoch timestamp in microseconds, got $value")
+        throw InvalidTransactionEventException("$field precisa ser um timestamp epoch positivo em microssegundos, recebido $value")
     }
     return value
 }
