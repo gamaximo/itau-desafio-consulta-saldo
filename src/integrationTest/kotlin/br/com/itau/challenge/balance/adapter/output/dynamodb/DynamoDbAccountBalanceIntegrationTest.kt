@@ -2,6 +2,7 @@ package br.com.itau.challenge.balance.adapter.output.dynamodb
 
 import br.com.itau.challenge.balance.domain.model.AccountBalance
 import br.com.itau.challenge.balance.domain.model.Money
+import br.com.itau.challenge.balance.domain.model.RejectionReason
 import org.junit.jupiter.api.Test
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider
@@ -60,7 +61,7 @@ class DynamoDbAccountBalanceIntegrationTest {
     fun `grava e lê um saldo de volta`() {
         val accountId = newAccountId()
 
-        assertTrue(repository.saveIfNewer(balance(accountId, "183.12", version = 1_000)))
+        assertNull(repository.saveIfNewer(balance(accountId, "183.12", version = 1_000)))
 
         val stored = assertNotNull(provider.findByAccountId(accountId))
         assertEquals(BigDecimal("183.12"), stored.balance.amount)
@@ -77,7 +78,7 @@ class DynamoDbAccountBalanceIntegrationTest {
         val accountId = newAccountId()
         repository.saveIfNewer(balance(accountId, "100.00", version = 1_000))
 
-        assertTrue(repository.saveIfNewer(balance(accountId, "300.00", version = 2_000)))
+        assertNull(repository.saveIfNewer(balance(accountId, "300.00", version = 2_000)))
 
         assertEquals(BigDecimal("300.00"), assertNotNull(provider.findByAccountId(accountId)).balance.amount)
     }
@@ -88,7 +89,7 @@ class DynamoDbAccountBalanceIntegrationTest {
         val accountId = newAccountId()
         repository.saveIfNewer(balance(accountId, "300.00", version = 2_000))
 
-        assertFalse(repository.saveIfNewer(balance(accountId, "100.00", version = 1_000)))
+        assertNotNull(repository.saveIfNewer(balance(accountId, "100.00", version = 1_000)))
 
         assertEquals(BigDecimal("300.00"), assertNotNull(provider.findByAccountId(accountId)).balance.amount)
     }
@@ -103,9 +104,9 @@ class DynamoDbAccountBalanceIntegrationTest {
         val accountId = newAccountId()
         val event = balance(accountId, "250.00", version = 5_000, transactionId = "fixed-transaction")
 
-        assertTrue(repository.saveIfNewer(event))
-        assertFalse(repository.saveIfNewer(event))
-        assertFalse(repository.saveIfNewer(event))
+        assertNull(repository.saveIfNewer(event))
+        assertNotNull(repository.saveIfNewer(event))
+        assertNotNull(repository.saveIfNewer(event))
 
         val stored = assertNotNull(provider.findByAccountId(accountId))
         assertEquals(BigDecimal("250.00"), stored.balance.amount)
