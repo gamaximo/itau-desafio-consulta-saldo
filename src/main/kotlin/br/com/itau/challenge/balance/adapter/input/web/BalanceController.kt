@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.responses.ApiResponses
+import org.slf4j.MDC
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.MediaType
 import org.springframework.web.bind.annotation.GetMapping
@@ -44,5 +45,20 @@ class BalanceController(
     fun getBalance(
         @Parameter(description = "Identificador da conta", example = "5b19c8b6-0cc4-4c72-a989-0c2ee15fa975")
         @PathVariable accountId: UUID,
-    ): BalanceResponse = getAccountBalanceUseCase.getBalance(accountId.toString()).toResponse(zoneId)
+    ): BalanceResponse {
+        val balance = getAccountBalanceUseCase.getBalance(accountId.toString())
+
+        // Conta e titular vão para o MDC com **os mesmos nomes usados na ingestão**, e é essa
+        // coincidência que dá o ganho: uma única consulta por `owner:…` passa a devolver tanto os
+        // eventos consumidos quanto as chamadas à API daquele titular, em ordem cronológica.
+        //
+        // Preenchido aqui porque este é o primeiro ponto que conhece o titular — o filtro de
+        // acesso só enxerga a URL, e a URL carrega apenas o identificador da conta. Como o filtro
+        // registra a linha no `finally`, depois deste método retornar, os campos já estão postos
+        // quando ele escreve. A limpeza também é dele, que é a fronteira da requisição.
+        MDC.put("account", accountId.toString())
+        MDC.put("owner", balance.owner)
+
+        return balance.toResponse(zoneId)
+    }
 }
