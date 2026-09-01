@@ -7,7 +7,7 @@ import kotlin.test.assertEquals
 class TimestampsTest {
 
     @Test
-    fun `converts epoch microseconds to an instant without losing precision`() {
+    fun `converte microssegundos epoch para instant sem perder precisão`() {
         val result = microsToInstant(1751641364589998L)
 
         assertEquals(1751641364L, result.epochSecond)
@@ -16,7 +16,7 @@ class TimestampsTest {
     }
 
     @Test
-    fun `converts the epoch itself`() {
+    fun `converte o próprio epoch`() {
         assertEquals(Instant.EPOCH, microsToInstant(0))
     }
 
@@ -26,7 +26,7 @@ class TimestampsTest {
      * pior, em outro caminho de código, cairia silenciosamente um segundo fora.
      */
     @Test
-    fun `converts a timestamp before the epoch`() {
+    fun `converte um timestamp anterior ao epoch`() {
         val result = microsToInstant(-1_500_000L)
 
         assertEquals(Instant.parse("1969-12-31T23:59:58.500Z"), result)

@@ -11,7 +11,7 @@ class DynamoDbConfigTest {
      * Este teste ao menos fixa que a configuração de override é montada sem erro.
      */
     @Test
-    fun `builds a client with explicit timeouts`() {
+    fun `constrói o cliente com timeouts explícitos`() {
         val client =
             DynamoDbConfig().dynamoDbClient(
                 endpoint = "http://localhost:8000",

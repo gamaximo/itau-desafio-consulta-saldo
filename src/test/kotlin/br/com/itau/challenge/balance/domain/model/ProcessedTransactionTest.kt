@@ -15,7 +15,7 @@ import kotlin.test.assertEquals
 class ProcessedTransactionTest {
 
     @Test
-    fun `projects the event into a balance`() {
+    fun `projeta o evento em um saldo`() {
         val result = processedTransaction().toAccountBalance()
 
         assertEquals(ACCOUNT_ID, result.accountId)
@@ -30,7 +30,7 @@ class ProcessedTransactionTest {
      * Armazenar o montante da transação seria a leitura equivocada clássica deste payload.
      */
     @Test
-    fun `stores the account snapshot balance, not the transaction amount`() {
+    fun `armazena o saldo do snapshot da conta, e não o valor da transação`() {
         val event =
             processedTransaction(
                 transaction = transaction(amount = money(amount = "97.07")),
@@ -46,14 +46,14 @@ class ProcessedTransactionTest {
      * vez, e compará-las entre replays não significaria nada.
      */
     @Test
-    fun `takes its version from the transaction timestamp`() {
+    fun `tira a versão do timestamp da transação`() {
         val event = processedTransaction(transaction = transaction(timestamp = 1_700_000_000_000_000L))
 
         assertEquals(1_700_000_000_000_000L, event.toAccountBalance().version)
     }
 
     @Test
-    fun `projects the same event to the same balance every time`() {
+    fun `projeta o mesmo evento para o mesmo saldo todas as vezes`() {
         val event = processedTransaction()
 
         assertEquals(event.toAccountBalance(), event.toAccountBalance())

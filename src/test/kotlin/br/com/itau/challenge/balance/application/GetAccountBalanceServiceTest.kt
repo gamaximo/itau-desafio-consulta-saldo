@@ -11,7 +11,7 @@ import kotlin.test.assertFailsWith
 class GetAccountBalanceServiceTest {
 
     @Test
-    fun `returns the stored balance`() {
+    fun `retorna o saldo armazenado`() {
         val expected = accountBalance()
         val service = GetAccountBalanceService(AccountBalanceProvider { expected })
 
@@ -24,7 +24,7 @@ class GetAccountBalanceServiceTest {
      * null.
      */
     @Test
-    fun `raises a not-found error when no balance has been projected`() {
+    fun `lança erro de não encontrado quando nenhum saldo foi projetado`() {
         val service = GetAccountBalanceService(AccountBalanceProvider { null })
 
         val exception = assertFailsWith<AccountBalanceNotFoundException> { service.getBalance(ACCOUNT_ID) }
@@ -33,7 +33,7 @@ class GetAccountBalanceServiceTest {
     }
 
     @Test
-    fun `queries the provider with the requested account`() {
+    fun `consulta o provider com a conta solicitada`() {
         var requested: String? = null
         val service =
             GetAccountBalanceService(

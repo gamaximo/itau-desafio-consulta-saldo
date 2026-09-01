@@ -43,7 +43,7 @@ class DynamoDbAccountBalanceProviderTest {
     private val provider = DynamoDbAccountBalanceProvider(client, TABLE)
 
     @Test
-    fun `reads a stored balance back into the domain model`() {
+    fun `lê um saldo armazenado de volta para o modelo de domínio`() {
         given(client.getItem(any(GetItemRequest::class.java)))
             .willReturn(GetItemResponse.builder().item(storedItem()).build())
 
@@ -62,7 +62,7 @@ class DynamoDbAccountBalanceProviderTest {
      * cópia somente-escrita nunca contradiga o que a API reporta.
      */
     @Test
-    fun `derives updatedAt from the stored version, not from the stored string`() {
+    fun `deriva updatedAt da versão armazenada, e não da string armazenada`() {
         val itemWithWrongDate =
             storedItem() + ("updatedAt" to AttributeValue.builder().s("1999-01-01T00:00:00Z").build())
         given(client.getItem(any(GetItemRequest::class.java)))
@@ -74,7 +74,7 @@ class DynamoDbAccountBalanceProviderTest {
     }
 
     @Test
-    fun `queries the configured table by partition key`() {
+    fun `consulta a tabela configurada pela partition key`() {
         given(client.getItem(any(GetItemRequest::class.java)))
             .willReturn(GetItemResponse.builder().item(storedItem()).build())
 
@@ -91,7 +91,7 @@ class DynamoDbAccountBalanceProviderTest {
      * liquidada poderia consultar e receber o saldo anterior, servido por uma réplica atrasada.
      */
     @Test
-    fun `reads consistently`() {
+    fun `faz leitura fortemente consistente`() {
         given(client.getItem(any(GetItemRequest::class.java)))
             .willReturn(GetItemResponse.builder().item(storedItem()).build())
 
@@ -109,14 +109,14 @@ class DynamoDbAccountBalanceProviderTest {
      * atributo nenhum.
      */
     @Test
-    fun `returns null when the account has no stored balance`() {
+    fun `retorna null quando a conta não tem saldo armazenado`() {
         given(client.getItem(any(GetItemRequest::class.java))).willReturn(GetItemResponse.builder().build())
 
         assertNull(provider.findByAccountId(ACCOUNT_ID))
     }
 
     @Test
-    fun `translates an SDK failure into a storage exception`() {
+    fun `traduz uma falha do SDK em exceção de armazenamento`() {
         given(client.getItem(any(GetItemRequest::class.java)))
             .willThrow(SdkClientException.builder().message("timeout").build())
 

@@ -57,7 +57,7 @@ class DynamoDbAccountBalanceIntegrationTest {
     )
 
     @Test
-    fun `stores and reads back a balance`() {
+    fun `grava e lê um saldo de volta`() {
         val accountId = newAccountId()
 
         assertTrue(repository.saveIfNewer(balance(accountId, "183.12", version = 1_000)))
@@ -68,12 +68,12 @@ class DynamoDbAccountBalanceIntegrationTest {
     }
 
     @Test
-    fun `returns null for an account that was never seen`() {
+    fun `retorna null para uma conta nunca vista`() {
         assertNull(provider.findByAccountId(newAccountId()))
     }
 
     @Test
-    fun `applies a newer version`() {
+    fun `aplica uma versão mais nova`() {
         val accountId = newAccountId()
         repository.saveIfNewer(balance(accountId, "100.00", version = 1_000))
 
@@ -84,7 +84,7 @@ class DynamoDbAccountBalanceIntegrationTest {
 
     /** Entrega fora de ordem: um evento atrasado não pode fazer o saldo retroceder. */
     @Test
-    fun `rejects an older version and leaves the stored balance untouched`() {
+    fun `rejeita uma versão mais antiga e deixa o saldo armazenado intacto`() {
         val accountId = newAccountId()
         repository.saveIfNewer(balance(accountId, "300.00", version = 2_000))
 
@@ -99,7 +99,7 @@ class DynamoDbAccountBalanceIntegrationTest {
      * nenhuma tabela de deduplicação envolvida.
      */
     @Test
-    fun `rejects a byte-identical replay of the same event`() {
+    fun `rejeita um reenvio byte a byte idêntico do mesmo evento`() {
         val accountId = newAccountId()
         val event = balance(accountId, "250.00", version = 5_000, transactionId = "fixed-transaction")
 
@@ -118,7 +118,7 @@ class DynamoDbAccountBalanceIntegrationTest {
      * mesmos três eventos e verifica que o resultado é idêntico todas as vezes.
      */
     @Test
-    fun `converges to the newest version regardless of arrival order`() {
+    fun `converge para a versão mais recente independentemente da ordem de chegada`() {
         val versions = listOf(1_000L, 2_000L, 3_000L)
 
         versions.permutations().forEach { arrivalOrder ->
@@ -135,7 +135,7 @@ class DynamoDbAccountBalanceIntegrationTest {
     }
 
     @Test
-    fun `preserves decimal precision through a full write and read cycle`() {
+    fun `preserva a precisão decimal num ciclo completo de escrita e leitura`() {
         val accountId = newAccountId()
 
         repository.saveIfNewer(balance(accountId, "0.07", version = 1))

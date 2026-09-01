@@ -37,7 +37,7 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     @Test
-    fun `writes the balance to the configured table`() {
+    fun `grava o saldo na tabela configurada`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         assertTrue(repository.saveIfNewer(accountBalance(balance = money(amount = "183.12"))))
@@ -56,7 +56,7 @@ class DynamoDbAccountBalanceRepositoryTest {
      * um centavo — o tipo de defeito que só aparece numa conciliação meses depois.
      */
     @Test
-    fun `stores the amount without floating point drift`() {
+    fun `armazena o valor sem desvio de ponto flutuante`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         repository.saveIfNewer(accountBalance(balance = money(amount = "183.12")))
@@ -66,7 +66,7 @@ class DynamoDbAccountBalanceRepositoryTest {
 
     /** Valores grandes não podem ser gravados em notação científica, que o DynamoDB rejeita. */
     @Test
-    fun `stores large amounts in plain notation`() {
+    fun `armazena valores grandes em notação simples`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         repository.saveIfNewer(accountBalance(balance = money(amount = "12000000000")))
@@ -75,7 +75,7 @@ class DynamoDbAccountBalanceRepositoryTest {
     }
 
     @Test
-    fun `guards the write with a strictly-newer condition`() {
+    fun `protege a escrita com a condição de versão estritamente mais nova`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         repository.saveIfNewer(accountBalance(version = TRANSACTION_TIMESTAMP))
@@ -92,7 +92,7 @@ class DynamoDbAccountBalanceRepositoryTest {
      * primeira escrita.
      */
     @Test
-    fun `aliases reserved attribute names`() {
+    fun `usa alias para os nomes de atributo reservados`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         repository.saveIfNewer(accountBalance())
@@ -108,7 +108,7 @@ class DynamoDbAccountBalanceRepositoryTest {
      * reenviada seria retentada e depois mandada para o DLT.
      */
     @Test
-    fun `reports not-applied when the condition rejects the write`() {
+    fun `reporta não-aplicado quando a condição rejeita a escrita`() {
         given(client.putItem(any(PutItemRequest::class.java)))
             .willThrow(ConditionalCheckFailedException.builder().message("condition failed").build())
 
@@ -121,7 +121,7 @@ class DynamoDbAccountBalanceRepositoryTest {
      * saldo em silêncio.
      */
     @Test
-    fun `translates an SDK failure into a storage exception`() {
+    fun `traduz uma falha do SDK em exceção de armazenamento`() {
         given(client.putItem(any(PutItemRequest::class.java)))
             .willThrow(SdkClientException.builder().message("connection reset").build())
 
@@ -132,7 +132,7 @@ class DynamoDbAccountBalanceRepositoryTest {
 
     /** Escrito para operadores, nunca lido de volta — mas ainda assim precisa existir e estar correto. */
     @Test
-    fun `stores a human-readable copy of the update time`() {
+    fun `armazena uma cópia legível da data de atualização`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
         repository.saveIfNewer(accountBalance(version = TRANSACTION_TIMESTAMP))

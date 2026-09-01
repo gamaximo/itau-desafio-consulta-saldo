@@ -30,7 +30,7 @@ class ProcessTransactionServiceTest {
     }
 
     @Test
-    fun `reports APPLIED when the write is accepted`() {
+    fun `reporta APPLIED quando a escrita é aceita`() {
         val service = ProcessTransactionService(RecordingRepository(accepted = true), applyDeclinedTransactions = true)
 
         assertEquals(ProcessingOutcome.APPLIED, service.process(processedTransaction()))
@@ -41,14 +41,14 @@ class ProcessTransactionServiceTest {
      * aparecesse como exceção, toda duplicata seria retentada e depois mandada para o DLT.
      */
     @Test
-    fun `reports STALE_DISCARDED when the write is rejected as not newer`() {
+    fun `reporta STALE_DISCARDED quando a escrita é rejeitada por não ser mais nova`() {
         val service = ProcessTransactionService(RecordingRepository(accepted = false), applyDeclinedTransactions = true)
 
         assertEquals(ProcessingOutcome.STALE_DISCARDED, service.process(processedTransaction()))
     }
 
     @Test
-    fun `hands the port the projected snapshot balance`() {
+    fun `entrega à porta o saldo projetado do snapshot`() {
         val repository = RecordingRepository(accepted = true)
         val service = ProcessTransactionService(repository, applyDeclinedTransactions = true)
 
@@ -65,7 +65,7 @@ class ProcessTransactionServiceTest {
     }
 
     @Test
-    fun `applies a declined transaction when the flag is on`() {
+    fun `aplica uma transação recusada quando a flag está ligada`() {
         val repository = RecordingRepository(accepted = true)
         val service = ProcessTransactionService(repository, applyDeclinedTransactions = true)
 
@@ -80,7 +80,7 @@ class ProcessTransactionServiceTest {
      * escrita é o objetivo, não apenas ignorar o resultado dela.
      */
     @Test
-    fun `skips a declined transaction entirely when the flag is off`() {
+    fun `ignora completamente uma transação recusada quando a flag está desligada`() {
         val repository = RecordingRepository(accepted = true)
         val service = ProcessTransactionService(repository, applyDeclinedTransactions = false)
 
@@ -91,7 +91,7 @@ class ProcessTransactionServiceTest {
     }
 
     @Test
-    fun `still applies an approved transaction when the declined flag is off`() {
+    fun `ainda aplica uma transação aprovada quando a flag de recusadas está desligada`() {
         val repository = RecordingRepository(accepted = true)
         val service = ProcessTransactionService(repository, applyDeclinedTransactions = false)
 

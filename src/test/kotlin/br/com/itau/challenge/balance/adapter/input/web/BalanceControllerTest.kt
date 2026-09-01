@@ -37,7 +37,7 @@ class BalanceControllerTest(
     private lateinit var accountBalanceRepository: AccountBalanceRepository
 
     @Test
-    fun `returns the balance in the contracted shape`() {
+    fun `retorna o saldo no formato do contrato`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willReturn(accountBalance(balance = money(amount = "183.12")))
 
@@ -65,7 +65,7 @@ class BalanceControllerTest(
      * interpretasse como horário local erraria por três horas.
      */
     @Test
-    fun `renders updated_at with an explicit offset`() {
+    fun `renderiza updated_at com offset explícito`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID)).willReturn(accountBalance())
 
         mockMvc.get("/balances/$ACCOUNT_ID").andExpect {
@@ -80,7 +80,7 @@ class BalanceControllerTest(
      * interprete um layout fixo quebra na variante que encontrar por segundo.
      */
     @Test
-    fun `always renders six fractional digits`() {
+    fun `renderiza sempre seis dígitos fracionários`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willReturn(accountBalance(version = 1_788_218_839_484_800))
 
@@ -92,7 +92,7 @@ class BalanceControllerTest(
 
     /** Um saldo que caia exatamente num segundo cheio ainda precisa carregar a fração. */
     @Test
-    fun `renders the fraction even for a whole second`() {
+    fun `renderiza a fração mesmo num segundo cheio`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willReturn(accountBalance(version = 1_751_641_364_000_000))
 
@@ -103,7 +103,7 @@ class BalanceControllerTest(
     }
 
     @Test
-    fun `returns 404 as a problem detail when the account has no balance`() {
+    fun `retorna 404 em problem detail quando a conta não tem saldo`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willThrow(AccountBalanceNotFoundException(ACCOUNT_ID))
 
@@ -120,7 +120,7 @@ class BalanceControllerTest(
      * isso esta expectativa não faz stub de nada.
      */
     @Test
-    fun `returns 400 for an identifier that is not a UUID`() {
+    fun `retorna 400 para um identificador que não é UUID`() {
         mockMvc.get("/balances/not-a-uuid").andExpect {
             status { isBadRequest() }
             content { contentType(MediaType.APPLICATION_PROBLEM_JSON) }
@@ -133,7 +133,7 @@ class BalanceControllerTest(
      * levaria um operador a investigar este serviço quando a falha está na dependência.
      */
     @Test
-    fun `returns 503 when the balance store is unavailable`() {
+    fun `retorna 503 quando o armazenamento de saldos está indisponível`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willThrow(AccountBalanceStorageException("boom", RuntimeException("timeout")))
 
@@ -146,7 +146,7 @@ class BalanceControllerTest(
 
     /** A mensagem interna de falha não pode chegar a quem chamou. */
     @Test
-    fun `does not leak internal failure details`() {
+    fun `não vaza detalhes internos da falha`() {
         given(getAccountBalanceUseCase.getBalance(ACCOUNT_ID))
             .willThrow(AccountBalanceStorageException("dynamodb.eu-west-1.amazonaws.com timed out", RuntimeException()))
 
@@ -157,7 +157,7 @@ class BalanceControllerTest(
     }
 
     @Test
-    fun `rejects unsupported HTTP methods`() {
+    fun `rejeita métodos HTTP não suportados`() {
         mockMvc.post("/balances/$ACCOUNT_ID").andExpect {
             status { isMethodNotAllowed() }
         }

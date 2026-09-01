@@ -29,7 +29,7 @@ class OpenApiDocumentationTest(
     private lateinit var accountBalanceRepository: AccountBalanceRepository
 
     @Test
-    fun `serves the OpenAPI document with the balance endpoint`() {
+    fun `serve o documento OpenAPI com o endpoint de saldo`() {
         mockMvc.get("/v3/api-docs").andExpect {
             status { isOk() }
             jsonPath("$.paths['/balances/{accountId}'].get") { exists() }
@@ -37,7 +37,7 @@ class OpenApiDocumentationTest(
     }
 
     @Test
-    fun `publishes the API identity in the document`() {
+    fun `publica a identidade da API no documento`() {
         mockMvc.get("/v3/api-docs").andExpect {
             status { isOk() }
             jsonPath("$.info.title") { value("Balance Query API") }
@@ -46,7 +46,7 @@ class OpenApiDocumentationTest(
     }
 
     @Test
-    fun `documents the error responses a consumer has to handle`() {
+    fun `documenta as respostas de erro que um consumidor precisa tratar`() {
         mockMvc.get("/v3/api-docs").andExpect {
             status { isOk() }
             jsonPath("$.paths['/balances/{accountId}'].get.responses.200") { exists() }
@@ -56,7 +56,7 @@ class OpenApiDocumentationTest(
     }
 
     @Test
-    fun `serves the Swagger UI`() {
+    fun `serve a Swagger UI`() {
         mockMvc.get("/swagger-ui/index.html").andExpect {
             status { isOk() }
         }

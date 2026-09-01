@@ -43,7 +43,7 @@ class TransactionEventMapperTest {
     private fun parse(payload: String) = objectMapper.readValue(payload, TransactionEventMessage::class.java)
 
     @Test
-    fun `maps the specification payload into the domain`() {
+    fun `mapeia o payload da especificação para o domínio`() {
         val event = parse(SAMPLE_PAYLOAD).toDomain()
 
         assertEquals("8e8ae808-b154-48b5-9f3e-553935cc4543", event.transaction.id)
@@ -61,7 +61,7 @@ class TransactionEventMapperTest {
      * real seria um erro de digitação no mapeamento.
      */
     @Test
-    fun `binds the snake_case created_at field`() {
+    fun `vincula o campo created_at em snake_case`() {
         assertEquals(1634874339000000L, parse(SAMPLE_PAYLOAD).account?.createdAt)
     }
 
@@ -70,7 +70,7 @@ class TransactionEventMapperTest {
      * decimal exato se perde antes de qualquer código de negócio rodar.
      */
     @Test
-    fun `keeps monetary amounts exact`() {
+    fun `mantém os valores monetários exatos`() {
         val event = parse(SAMPLE_PAYLOAD).toDomain()
 
         assertEquals(BigDecimal("97.07"), event.transaction.amount.amount)
@@ -78,14 +78,14 @@ class TransactionEventMapperTest {
     }
 
     @Test
-    fun `ignores properties the producer added`() {
+    fun `ignora propriedades que o produtor adicionou`() {
         val withExtras = SAMPLE_PAYLOAD.replace("\"type\": \"CREDIT\"", "\"type\": \"CREDIT\", \"channel\": \"PIX\"")
 
         assertEquals(TransactionType.CREDIT, parse(withExtras).toDomain().transaction.type)
     }
 
     @Test
-    fun `reports which required field is missing`() {
+    fun `informa qual campo obrigatório está faltando`() {
         val missingAccount = """{"transaction": {"id": "8e8ae808-b154-48b5-9f3e-553935cc4543"}}"""
 
         val exception = assertFailsWith<InvalidTransactionEventException> { parse(missingAccount).toDomain() }
@@ -94,7 +94,7 @@ class TransactionEventMapperTest {
     }
 
     @Test
-    fun `reports a missing nested balance`() {
+    fun `informa quando o balance aninhado está ausente`() {
         val withoutBalance = SAMPLE_PAYLOAD.replace(
             """"balance": {
       "amount": 183.12,
@@ -109,19 +109,19 @@ class TransactionEventMapperTest {
     }
 
     @Test
-    fun `rejects an empty object`() {
+    fun `rejeita um objeto vazio`() {
         assertFailsWith<InvalidTransactionEventException> { parse("{}").toDomain() }
     }
 
     @Test
-    fun `rejects an unknown enum value`() {
+    fun `rejeita um valor de enum desconhecido`() {
         val unknownType = SAMPLE_PAYLOAD.replace("\"CREDIT\"", "\"TRANSFER\"")
 
         assertFailsWith<InvalidTransactionEventException> { parse(unknownType).toDomain() }
     }
 
     @Test
-    fun `rejects a malformed identifier`() {
+    fun `rejeita um identificador malformado`() {
         val badId = SAMPLE_PAYLOAD.replace("5b19c8b6-0cc4-4c72-a989-0c2ee15fa975", "not-a-uuid")
 
         assertFailsWith<InvalidTransactionEventException> { parse(badId).toDomain() }

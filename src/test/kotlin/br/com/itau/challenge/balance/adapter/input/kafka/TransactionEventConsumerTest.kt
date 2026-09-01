@@ -57,7 +57,7 @@ class TransactionEventConsumerTest {
         registry.get("balance.transactions.processed").tag("outcome", outcome.name.lowercase()).counter().count()
 
     @Test
-    fun `passes a valid event to the use case`() {
+    fun `entrega um evento válido ao caso de uso`() {
         consumerReturning(ProcessingOutcome.APPLIED).consume(VALID_PAYLOAD)
 
         val event = assertNotNull(received)
@@ -72,7 +72,7 @@ class TransactionEventConsumerTest {
      * errado.
      */
     @Test
-    fun `records every outcome the use case can report`() {
+    fun `contabiliza todos os resultados que o caso de uso pode reportar`() {
         ProcessingOutcome.entries.forEach { outcome ->
             consumerReturning(outcome).consume(VALID_PAYLOAD)
             assertEquals(1.0, outcomeCount(outcome), "expected $outcome to be counted once")
@@ -80,7 +80,7 @@ class TransactionEventConsumerTest {
     }
 
     @Test
-    fun `rejects syntactically broken JSON without calling the use case`() {
+    fun `rejeita JSON sintaticamente quebrado sem chamar o caso de uso`() {
         val consumer = consumerReturning(ProcessingOutcome.APPLIED)
 
         assertFailsWith<InvalidTransactionEventException> { consumer.consume("{ not json") }
@@ -90,7 +90,7 @@ class TransactionEventConsumerTest {
     }
 
     @Test
-    fun `rejects a payload that breaks the contract`() {
+    fun `rejeita um payload que quebra o contrato`() {
         val consumer = consumerReturning(ProcessingOutcome.APPLIED)
         val missingAccount = """{"transaction": {"id": "8e8ae808-b154-48b5-9f3e-553935cc4543"}}"""
 
@@ -106,7 +106,7 @@ class TransactionEventConsumerTest {
      * nem ao saldo nem ao dead letter topic.
      */
     @Test
-    fun `lets the rejection propagate so the error handler can dead-letter it`() {
+    fun `deixa a rejeição propagar para o error handler mandá-la ao DLT`() {
         val consumer = consumerReturning(ProcessingOutcome.APPLIED)
         val unknownEnum = VALID_PAYLOAD.replace("\"CREDIT\"", "\"TRANSFER\"")
 

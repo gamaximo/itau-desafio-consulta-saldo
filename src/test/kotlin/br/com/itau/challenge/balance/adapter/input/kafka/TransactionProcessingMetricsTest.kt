@@ -14,7 +14,7 @@ class TransactionProcessingMetricsTest {
         registry.get("balance.transactions.processed").tag("outcome", outcome.name.lowercase()).counter().count()
 
     @Test
-    fun `counts each outcome under its own tag`() {
+    fun `conta cada resultado sob a própria tag`() {
         metrics.recordOutcome(ProcessingOutcome.APPLIED)
         metrics.recordOutcome(ProcessingOutcome.APPLIED)
         metrics.recordOutcome(ProcessingOutcome.STALE_DISCARDED)
@@ -31,14 +31,14 @@ class TransactionProcessingMetricsTest {
      * sobre a série ausente mostra nada em silêncio, em vez de mostrar zero.
      */
     @Test
-    fun `registers a counter for every outcome before any event arrives`() {
+    fun `registra um contador para cada resultado antes de qualquer evento chegar`() {
         ProcessingOutcome.entries.forEach { outcome ->
             assertEquals(0.0, countFor(outcome), "expected a pre-registered counter for $outcome")
         }
     }
 
     @Test
-    fun `counts rejected events`() {
+    fun `conta os eventos rejeitados`() {
         metrics.recordRejected()
 
         assertEquals(1.0, registry.get("balance.transactions.rejected").counter().count())

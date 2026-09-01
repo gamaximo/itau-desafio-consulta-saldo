@@ -14,7 +14,7 @@ class KafkaConsumerConfigTest {
     private val config = KafkaConsumerConfig()
 
     @Test
-    fun `declares the transactions topic with the configured partition count`() {
+    fun `declara o tópico de transações com a quantidade de partições configurada`() {
         val topic = config.transactionsTopic(TOPIC, partitions = 3)
 
         assertEquals(TOPIC, topic.name())
@@ -27,7 +27,7 @@ class KafkaConsumerConfigTest {
      * poria mensagens em quarentena onde ninguém vai procurá-las.
      */
     @Test
-    fun `derives the dead letter topic from the transactions topic`() {
+    fun `deriva o dead letter topic a partir do tópico de transações`() {
         val topic = config.transactionsDeadLetterTopic(TOPIC, partitions = 3)
 
         assertEquals("$TOPIC.DLT", topic.name())
@@ -35,7 +35,7 @@ class KafkaConsumerConfigTest {
     }
 
     @Test
-    fun `routes a rejected record to the dead letter topic of its own source topic`() {
+    fun `roteia um registro rejeitado para o dead letter topic do próprio tópico de origem`() {
         val record = ConsumerRecord("some-topic", 2, 42L, "key", "value")
 
         val destination = deadLetterDestinationFor(record, IllegalStateException("boom"))
@@ -48,14 +48,14 @@ class KafkaConsumerConfigTest {
      * falharia de imediato sempre que o DLT tivesse menos partições que o tópico que ele espelha.
      */
     @Test
-    fun `does not pin the dead letter record to the source partition`() {
+    fun `não fixa o registro rejeitado na partição de origem`() {
         val record = ConsumerRecord("some-topic", 7, 1L, "key", "value")
 
         assertEquals(-1, deadLetterDestinationFor(record, RuntimeException("boom")).partition())
     }
 
     @Test
-    fun `builds an error handler`() {
+    fun `constrói o error handler`() {
         val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java))
 
         assertNotNull(handler)

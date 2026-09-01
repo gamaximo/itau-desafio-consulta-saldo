@@ -23,7 +23,7 @@ class HexagonalArchitectureTest {
     private val adapter = Layer("Adapter", "..balance.adapter..")
 
     @Test
-    fun `hexagonal layers respect dependency direction`() {
+    fun `as camadas do hexágono respeitam a direção de dependência`() {
         scope.assertArchitecture {
             domain.dependsOnNothing()
             port.doesNotDependOn(application, adapter)
@@ -32,7 +32,7 @@ class HexagonalArchitectureTest {
     }
 
     @Test
-    fun `domain does not depend on the Spring framework`() {
+    fun `o domínio não depende do Spring`() {
         assertNoImportsStartingWith(DOMAIN_PACKAGE, "org.springframework")
     }
 
@@ -43,7 +43,7 @@ class HexagonalArchitectureTest {
      * evitar.
      */
     @Test
-    fun `core does not depend on the AWS SDK`() {
+    fun `o núcleo não depende do AWS SDK`() {
         CORE_PACKAGES.forEach { assertNoImportsStartingWith(it, "software.amazon.awssdk") }
     }
 
@@ -53,7 +53,7 @@ class HexagonalArchitectureTest {
      * lá.
      */
     @Test
-    fun `core does not depend on Kafka`() {
+    fun `o núcleo não depende do Kafka`() {
         CORE_PACKAGES.forEach { assertNoImportsStartingWith(it, "org.apache.kafka") }
     }
 

@@ -11,7 +11,7 @@ import kotlin.test.assertTrue
 class TransactionTest {
 
     @Test
-    fun `builds a valid transaction`() {
+    fun `constrói uma transação válida`() {
         val result = transaction()
 
         assertEquals(TransactionType.CREDIT, result.type)
@@ -19,7 +19,7 @@ class TransactionTest {
     }
 
     @Test
-    fun `rejects an id that is not a UUID`() {
+    fun `rejeita um id que não é UUID`() {
         val exception =
             assertFailsWith<InvalidTransactionEventException> {
                 transaction(id = "8e8ae808")
@@ -29,7 +29,7 @@ class TransactionTest {
     }
 
     @Test
-    fun `rejects a non-positive timestamp`() {
+    fun `rejeita um timestamp não positivo`() {
         listOf(0L, -1L).forEach { invalid ->
             assertFailsWith<InvalidTransactionEventException>("expected $invalid to be rejected") {
                 transaction(timestamp = invalid)
@@ -38,7 +38,7 @@ class TransactionTest {
     }
 
     @Test
-    fun `rejects a negative amount`() {
+    fun `rejeita um valor negativo`() {
         val exception =
             assertFailsWith<InvalidTransactionEventException> {
                 transaction(amount = money(amount = "-0.01"))
@@ -48,7 +48,7 @@ class TransactionTest {
     }
 
     @Test
-    fun `accepts a zero amount`() {
+    fun `aceita valor zero`() {
         assertEquals("0.00", transaction(amount = money(amount = "0.00")).amount.amount.toPlainString())
     }
 }

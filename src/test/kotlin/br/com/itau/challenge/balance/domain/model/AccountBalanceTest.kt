@@ -9,7 +9,7 @@ import kotlin.test.assertEquals
 class AccountBalanceTest {
 
     @Test
-    fun `derives updatedAt from the version`() {
+    fun `deriva updatedAt a partir da versão`() {
         val balance = accountBalance(version = TRANSACTION_TIMESTAMP)
 
         assertEquals(Instant.parse("2025-07-04T15:02:44.589998Z"), balance.updatedAt)
@@ -20,7 +20,7 @@ class AccountBalanceTest {
      * não armazenado, os dois nunca podem discordar — que é justamente a razão de ser derivado.
      */
     @Test
-    fun `two balances with the same version report the same instant`() {
+    fun `dois saldos com a mesma versão reportam o mesmo instante`() {
         assertEquals(
             accountBalance(version = 1_000_000L).updatedAt,
             accountBalance(version = 1_000_000L, lastTransactionId = "different").updatedAt,

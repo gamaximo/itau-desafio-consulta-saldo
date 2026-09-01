@@ -69,7 +69,7 @@ class TransactionEventConsumerIntegrationTest(
     }
 
     @Test
-    fun `consumes a published event and projects the balance`() {
+    fun `consome um evento publicado e projeta o saldo`() {
         val accountId = UUID.randomUUID().toString()
 
         kafkaTemplate.send(topic, event(accountId, amount = "183.12", timestamp = 1_000_000))
@@ -86,7 +86,7 @@ class TransactionEventConsumerIntegrationTest(
      * recente.
      */
     @Test
-    fun `settles on the newest event even when older ones arrive later`() {
+    fun `assenta no evento mais recente mesmo com outros mais antigos chegando depois`() {
         val accountId = UUID.randomUUID().toString()
 
         kafkaTemplate.send(topic, event(accountId, amount = "300.00", timestamp = 3_000_000))
@@ -107,7 +107,7 @@ class TransactionEventConsumerIntegrationTest(
     }
 
     @Test
-    fun `ignores a duplicated event`() {
+    fun `ignora um evento duplicado`() {
         val accountId = UUID.randomUUID().toString()
         val transactionId = UUID.randomUUID().toString()
         val payload = event(accountId, amount = "250.00", timestamp = 5_000_000, transactionId = transactionId)
@@ -124,7 +124,7 @@ class TransactionEventConsumerIntegrationTest(
      * travar a partição em que chegou.
      */
     @Test
-    fun `dead-letters an unprocessable event and leaves the balance untouched`() {
+    fun `manda um evento inprocessável ao DLT e deixa o saldo intacto`() {
         val accountId = UUID.randomUUID().toString()
         val marker = UUID.randomUUID().toString()
         val invalid = event(accountId, amount = "999.99", timestamp = 9_000_000, transactionId = marker, type = "TRANSFER")

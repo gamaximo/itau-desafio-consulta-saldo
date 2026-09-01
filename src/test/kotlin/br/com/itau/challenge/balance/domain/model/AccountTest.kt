@@ -11,27 +11,27 @@ import kotlin.test.assertTrue
 class AccountTest {
 
     @Test
-    fun `builds a valid account`() {
+    fun `constrói uma conta válida`() {
         assertEquals(ACCOUNT_ID, account().id)
         assertEquals(AccountStatus.ENABLED, account().status)
     }
 
     @Test
-    fun `rejects an id that is not a UUID`() {
+    fun `rejeita um id que não é UUID`() {
         val exception = assertFailsWith<InvalidTransactionEventException> { account(id = "not-a-uuid") }
 
         assertTrue(exception.message!!.contains("account.id"))
     }
 
     @Test
-    fun `rejects an owner that is not a UUID`() {
+    fun `rejeita um titular que não é UUID`() {
         val exception = assertFailsWith<InvalidTransactionEventException> { account(owner = "12345") }
 
         assertTrue(exception.message!!.contains("account.owner"))
     }
 
     @Test
-    fun `rejects a non-positive creation timestamp`() {
+    fun `rejeita um timestamp de criação não positivo`() {
         val exception = assertFailsWith<InvalidTransactionEventException> { account(createdAt = 0) }
 
         assertTrue(exception.message!!.contains("account.created_at"))
@@ -43,7 +43,7 @@ class AccountTest {
      * eventos.
      */
     @Test
-    fun `accepts a disabled account`() {
+    fun `aceita uma conta desabilitada`() {
         assertEquals(AccountStatus.DISABLED, account(status = AccountStatus.DISABLED).status)
     }
 }

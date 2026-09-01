@@ -12,7 +12,7 @@ import kotlin.test.assertTrue
 class MoneyTest {
 
     @Test
-    fun `accepts a valid ISO 4217 currency`() {
+    fun `aceita uma moeda ISO 4217 válida`() {
         val value = Money(BigDecimal("183.12"), "BRL")
 
         assertEquals(BigDecimal("183.12"), value.amount)
@@ -20,7 +20,7 @@ class MoneyTest {
     }
 
     @Test
-    fun `rejects a code that is not a real ISO 4217 currency`() {
+    fun `rejeita um código que não é uma moeda ISO 4217 real`() {
         listOf("brl", "BR", "BRLX", "", "R$1", "ZZZ").forEach { invalid ->
             assertFailsWith<InvalidTransactionEventException>("expected '$invalid' to be rejected") {
                 Money(BigDecimal.ONE, invalid)
@@ -34,20 +34,20 @@ class MoneyTest {
      * o valor mudaria de significado só por ter sido armazenado e lido de volta.
      */
     @Test
-    fun `normalises the amount to the currency scale`() {
+    fun `normaliza o valor para a escala da moeda`() {
         assertEquals("300.00", money(amount = "300").amount.toPlainString())
         assertEquals("300.00", money(amount = "300.0").amount.toPlainString())
         assertEquals("300.00", money(amount = "300.00").amount.toPlainString())
     }
 
     @Test
-    fun `treats the same value written with different scales as equal`() {
+    fun `trata como iguais o mesmo valor escrito com escalas diferentes`() {
         assertEquals(money(amount = "300"), money(amount = "300.00"))
         assertEquals(money(amount = "300").hashCode(), money(amount = "300.00").hashCode())
     }
 
     @Test
-    fun `is not equal across currencies`() {
+    fun `não considera iguais valores de moedas diferentes`() {
         assertNotEquals(Money(BigDecimal("10.00"), "BRL"), Money(BigDecimal("10.00"), "USD"))
     }
 
@@ -56,7 +56,7 @@ class MoneyTest {
      * normalizá-lo para duas casas decimais estaria errado de um jeito fácil de passar batido.
      */
     @Test
-    fun `uses the fraction digits of the currency itself`() {
+    fun `usa os dígitos fracionários da própria moeda`() {
         assertEquals("1000", Money(BigDecimal("1000"), "JPY").amount.toPlainString())
         assertEquals("1.500", Money(BigDecimal("1.5"), "BHD").amount.toPlainString())
     }
@@ -66,7 +66,7 @@ class MoneyTest {
      * moeda dele é um defeito do produtor, e é reportado como tal.
      */
     @Test
-    fun `rejects an amount more precise than the currency allows`() {
+    fun `rejeita um valor mais preciso do que a moeda permite`() {
         val exception = assertFailsWith<InvalidTransactionEventException> { money(amount = "1.234") }
 
         assertTrue(exception.message!!.contains("precision"))
@@ -78,12 +78,12 @@ class MoneyTest {
      * [Transaction], não aqui.
      */
     @Test
-    fun `allows a negative amount, because an overdrawn balance is a real balance`() {
+    fun `permite valor negativo, porque saldo em cheque especial é um saldo real`() {
         assertEquals(BigDecimal("-42.50"), money(amount = "-42.50").amount)
     }
 
     @Test
-    fun `has a readable toString for logs`() {
+    fun `tem um toString legível para os logs`() {
         assertTrue(money(amount = "10.00").toString().contains("10.00"))
     }
 }

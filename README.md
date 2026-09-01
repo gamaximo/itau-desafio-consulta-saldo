@@ -506,13 +506,13 @@ a *string* da expressão prova a string.
 
 Destaques:
 
-- **`converges to the newest version regardless of arrival order`** — aplica os mesmos três
+- **`converge para a versão mais recente independentemente da ordem de chegada`** — aplica os mesmos três
   eventos em **todas as permutações** de ordem e verifica que o estado final é sempre o mais
   recente.
-- **`rejects a byte-identical replay`** — idempotência contra o banco de verdade.
-- **`dead-letters an unprocessable event`** — publica um payload inválido, consome o DLT e
+- **`rejeita um reenvio byte a byte idêntico do mesmo evento`** — idempotência contra o banco de verdade.
+- **`manda um evento inprocessável ao DLT e deixa o saldo intacto`** — publica um payload inválido, consome o DLT e
   confirma que o saldo não foi tocado.
-- **`settles on the newest event even when older ones arrive later`** — ponta a ponta, pelo
+- **`assenta no evento mais recente mesmo com outros mais antigos chegando depois`** — ponta a ponta, pelo
   listener real, com mensagens sem chave.
 
 > Estes testes encontraram o comportamento de truncamento de zeros do DynamoDB descrito na
