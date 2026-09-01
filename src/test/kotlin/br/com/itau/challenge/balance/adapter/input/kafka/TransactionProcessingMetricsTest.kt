@@ -17,10 +17,10 @@ class TransactionProcessingMetricsTest {
     fun `conta cada resultado sob a própria tag`() {
         metrics.recordOutcome(ProcessingOutcome.APPLIED)
         metrics.recordOutcome(ProcessingOutcome.APPLIED)
-        metrics.recordOutcome(ProcessingOutcome.STALE_DISCARDED)
+        metrics.recordOutcome(ProcessingOutcome.OUT_OF_ORDER_DISCARDED)
 
         assertEquals(2.0, countFor(ProcessingOutcome.APPLIED))
-        assertEquals(1.0, countFor(ProcessingOutcome.STALE_DISCARDED))
+        assertEquals(1.0, countFor(ProcessingOutcome.OUT_OF_ORDER_DISCARDED))
         assertEquals(0.0, countFor(ProcessingOutcome.DECLINED_SKIPPED))
     }
 

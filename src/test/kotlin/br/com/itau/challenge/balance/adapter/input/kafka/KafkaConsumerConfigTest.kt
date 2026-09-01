@@ -4,6 +4,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.util.backoff.BackOffExecution
+import org.springframework.util.backoff.ExponentialBackOff
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -68,6 +70,33 @@ class KafkaConsumerConfigTest {
         // A rota não muda; o que se verifica aqui é que a função aceita a exceção aninhada sem
         // perder a causa — a mensagem em si é validada pela inspeção do log em runtime.
         assertEquals("some-topic.DLT", deadLetterDestinationFor(record, wrapper).topic())
+    }
+
+    /**
+     * A política de retry é uma decisão operacional — quantas vezes e com que espera — e nada no
+     * código a protege de ser alterada por engano. Este teste fixa os números: três novas
+     * tentativas, começando em 500ms e dobrando, somando poucos segundos.
+     *
+     * O total importa porque conta contra `max.poll.interval.ms`: um backoff que ultrapassasse
+     * esse limite faria o consumidor ser expulso do grupo no meio de uma falha transitória,
+     * transformando um problema pequeno num rebalanceamento.
+     */
+    @Test
+    fun `a politica de retry espera 500ms, 1s e 2s antes de desistir`() {
+        val execucao = ExponentialBackOff().apply {
+            initialInterval = 500
+            multiplier = 2.0
+            maxInterval = 5_000
+            maxAttempts = 3
+            jitter = 0
+        }.start()
+
+        val esperas = generateSequence { execucao.nextBackOff() }
+            .takeWhile { it != BackOffExecution.STOP }
+            .toList()
+
+        assertEquals(listOf(500L, 1_000L, 2_000L), esperas)
+        assertEquals(3_500L, esperas.sum(), "o total precisa caber com folga em max.poll.interval.ms")
     }
 
     @Test

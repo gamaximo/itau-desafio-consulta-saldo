@@ -57,6 +57,11 @@ balance:
   # Define se uma transação DECLINED atualiza o saldo armazenado. Veja ProcessTransactionService
   # para o racional completo por trás do padrão.
   apply-declined-transactions: ${APPLY_DECLINED_TRANSACTIONS:true}
+  # Quão adiantado um evento pode estar em relação ao nosso relógio antes de ser rejeitado.
+  # Protege contra o cenário em que um timestamp absurdamente no futuro — erro de unidade no
+  # produtor, ou relógio adiantado — vence todos os eventos seguintes e congela a conta em
+  # silêncio. Cinco minutos cobrem com folga a diferença legítima de relógio entre máquinas.
+  max-clock-skew: ${MAX_CLOCK_SKEW:5m}
 
 api:
   # Fuso horário usado para renderizar `updated_at` na resposta. O instante em si é armazenado em
@@ -91,6 +96,11 @@ management:
       # O detalhamento completo fica exposto porque esta stack não tem autenticação na frente. Num
       # ambiente real isto ficaria em `when-authorized`.
       show-details: always
+      cache:
+        # As probes de liveness e readiness batem de segundos em segundos, e cada readiness custa
+        # uma chamada ao DynamoDB. O cache mantém a verificação frequente o suficiente para ser
+        # útil sem transformar o próprio health check em carga sobre a dependência que ele observa.
+        time-to-live: 5s
       group:
         # `dynamoDb` entra apenas na readiness. É o que faz a promessa acima valer: sem incluí-lo
         # aqui, o indicador existiria mas a probe continuaria respondendo UP com o banco fora,

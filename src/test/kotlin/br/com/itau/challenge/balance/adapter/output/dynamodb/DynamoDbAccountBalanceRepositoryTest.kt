@@ -6,6 +6,7 @@ import br.com.itau.challenge.balance.fixture.TRANSACTION_ID
 import br.com.itau.challenge.balance.fixture.TRANSACTION_TIMESTAMP
 import br.com.itau.challenge.balance.fixture.accountBalance
 import br.com.itau.challenge.balance.fixture.money
+import br.com.itau.challenge.balance.domain.model.RejectionReason
 import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
@@ -19,8 +20,8 @@ import software.amazon.awssdk.services.dynamodb.model.ConditionalCheckFailedExce
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest
 import software.amazon.awssdk.services.dynamodb.model.PutItemResponse
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertFailsWith
-import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 private const val TABLE = "AccountBalances"
@@ -40,7 +41,7 @@ class DynamoDbAccountBalanceRepositoryTest {
     fun `grava o saldo na tabela configurada`() {
         given(client.putItem(any(PutItemRequest::class.java))).willReturn(PutItemResponse.builder().build())
 
-        assertTrue(repository.saveIfNewer(accountBalance(balance = money(amount = "183.12"))))
+        assertNull(repository.saveIfNewer(accountBalance(balance = money(amount = "183.12"))))
 
         val request = capturedRequest()
         assertEquals(TABLE, request.tableName())
@@ -112,7 +113,7 @@ class DynamoDbAccountBalanceRepositoryTest {
         given(client.putItem(any(PutItemRequest::class.java)))
             .willThrow(ConditionalCheckFailedException.builder().message("condition failed").build())
 
-        assertFalse(repository.saveIfNewer(accountBalance()))
+        assertEquals(RejectionReason.OUT_OF_ORDER, repository.saveIfNewer(accountBalance()))
     }
 
     /**

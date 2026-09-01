@@ -55,6 +55,11 @@ class RequestLoggingFilter : OncePerRequestFilter() {
             MDC.put("http.path", request.requestURI)
             MDC.put("http.status", response.status.toString())
             MDC.put("http.duration_ms", durationMs.toString())
+            // Origem da chamada: sem isto o log responde "o que aconteceu" mas não "quem fez".
+            // `X-Forwarded-For` vem antes de `remoteAddr` porque atrás de um balanceador este
+            // último seria sempre o IP do próprio balanceador, igual para todo mundo.
+            MDC.put("client.ip", request.getHeader("X-Forwarded-For") ?: request.remoteAddr)
+            request.getHeader("User-Agent")?.let { MDC.put("client.user_agent", it) }
             try {
                 accessLogger.info(
                     "{} {} -> {} ({}ms)",
@@ -76,6 +81,8 @@ class RequestLoggingFilter : OncePerRequestFilter() {
                     "http.path",
                     "http.status",
                     "http.duration_ms",
+                    "client.ip",
+                    "client.user_agent",
                     "account",
                     "owner",
                 ).forEach(MDC::remove)

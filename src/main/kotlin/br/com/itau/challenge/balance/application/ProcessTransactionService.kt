@@ -1,12 +1,17 @@
 package br.com.itau.challenge.balance.application
 
+import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventException
 import br.com.itau.challenge.balance.domain.model.ProcessedTransaction
 import br.com.itau.challenge.balance.domain.model.ProcessingOutcome
+import br.com.itau.challenge.balance.domain.model.RejectionReason
 import br.com.itau.challenge.balance.domain.model.TransactionStatus
+import br.com.itau.challenge.balance.domain.model.microsToInstant
 import br.com.itau.challenge.balance.port.input.ProcessTransactionUseCase
 import br.com.itau.challenge.balance.port.output.AccountBalanceRepository
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import java.time.Clock
+import java.time.Duration
 
 @Service
 class ProcessTransactionService(
@@ -19,27 +24,53 @@ class ProcessTransactionService(
     // O padrão é `true`, porque uma transação recusada continua carregando um snapshot de saldo
     // válido: o autorizador avaliou a conta naquele microssegundo e informou qual era o saldo.
     // Recusar um débito por saldo insuficiente não move dinheiro, mas também não torna o saldo
-    // informado incorreto. Descartar esses eventos significaria ignorar a leitura mais recente
-    // que o sistema tem — e, numa conta cujas transações são majoritariamente recusadas, o saldo
-    // armazenado envelheceria sem um bom motivo.
+    // informado incorreto.
     //
-    // Configure como `false` para projetar apenas transações aprovadas. Essa é a leitura mais
-    // conservadora — "o saldo muda quando o dinheiro se move" — e é o ajuste correto caso algum
-    // dia se constate que o autorizador emite o saldo pré-autorização nas recusas, em vez do
-    // saldo liquidado. Com `false`, a versão armazenada passa a ser a do último APPROVED, então
-    // um APPROVED posterior continua sendo aplicado normalmente; a corretude se mantém nos dois
-    // modos, muda apenas o frescor.
+    // Configure como `false` para projetar apenas transações aprovadas — a leitura mais
+    // conservadora, e o ajuste correto caso se constate que o autorizador emite o saldo
+    // pré-autorização nas recusas.
     // -----------------------------------------------------------------------------------------
     @Value("\${balance.apply-declined-transactions}") private val applyDeclinedTransactions: Boolean,
+    // --- balance.max-clock-skew ----------------------------------------------------------------
+    // Quão adiantado um evento pode estar em relação ao nosso relógio antes de ser rejeitado.
+    //
+    // Existe porque a ordenação deste serviço confia num timestamp produzido por outro sistema, e
+    // essa confiança tem um custo: um evento com timestamp absurdamente no futuro venceria todos
+    // os seguintes e **congelaria a conta** — o saldo pararia de atualizar em silêncio, sem erro
+    // em lugar nenhum, até a data chegar. Basta um produtor trocar microssegundos por
+    // nanossegundos, ou ter o relógio adiantado, para produzir isso.
+    //
+    // A tolerância cobre a diferença de relógio legítima entre máquinas; acima dela, o evento vai
+    // para o dead letter topic, onde fica visível e investigável em vez de envenenar a conta.
+    // -------------------------------------------------------------------------------------------
+    @Value("\${balance.max-clock-skew}") private val maxClockSkew: Duration,
+    private val clock: Clock,
 ) : ProcessTransactionUseCase {
 
     override fun process(processedTransaction: ProcessedTransaction): ProcessingOutcome {
+        rejectIfFromTheFuture(processedTransaction)
+
         if (!applyDeclinedTransactions && processedTransaction.transaction.status == TransactionStatus.DECLINED) {
             return ProcessingOutcome.DECLINED_SKIPPED
         }
 
-        val applied = accountBalanceRepository.saveIfNewer(processedTransaction.toAccountBalance())
+        return when (accountBalanceRepository.saveIfNewer(processedTransaction.toAccountBalance())) {
+            null -> ProcessingOutcome.APPLIED
+            RejectionReason.DUPLICATE -> ProcessingOutcome.DUPLICATE_DISCARDED
+            RejectionReason.OUT_OF_ORDER -> ProcessingOutcome.OUT_OF_ORDER_DISCARDED
+        }
+    }
 
-        return if (applied) ProcessingOutcome.APPLIED else ProcessingOutcome.STALE_DISCARDED
+    private fun rejectIfFromTheFuture(processedTransaction: ProcessedTransaction) {
+        val eventInstant = microsToInstant(processedTransaction.transaction.timestamp)
+        val limit = clock.instant().plus(maxClockSkew)
+
+        if (eventInstant.isAfter(limit)) {
+            throw InvalidTransactionEventException(
+                "transaction.timestamp está ${maxClockSkew.toMinutes()} minutos ou mais no futuro " +
+                    "($eventInstant); o valor pode estar em outra unidade que não microssegundos, " +
+                    "ou o relógio do produtor está adiantado",
+            )
+        }
     }
 }

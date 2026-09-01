@@ -9,10 +9,9 @@ import org.mockito.Mockito.verify
 import org.springframework.boot.health.contributor.Status
 import software.amazon.awssdk.core.exception.SdkClientException
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient
-import software.amazon.awssdk.services.dynamodb.model.DescribeTableRequest
-import software.amazon.awssdk.services.dynamodb.model.DescribeTableResponse
-import software.amazon.awssdk.services.dynamodb.model.TableDescription
-import software.amazon.awssdk.services.dynamodb.model.TableStatus
+import software.amazon.awssdk.services.dynamodb.model.GetItemRequest
+import software.amazon.awssdk.services.dynamodb.model.GetItemResponse
+import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
 import kotlin.test.assertEquals
 
 private const val TABELA = "AccountBalances"
@@ -22,21 +21,22 @@ class DynamoDbHealthIndicatorTest {
     private val client = mock(DynamoDbClient::class.java)
     private val indicator = DynamoDbHealthIndicator(client, TABELA)
 
-    private fun tabelaAtiva() =
-        DescribeTableResponse
-            .builder()
-            .table(TableDescription.builder().tableStatus(TableStatus.ACTIVE).build())
-            .build()
+    private fun respostaVazia() = GetItemResponse.builder().build()
+
+    private fun requisicaoCapturada(): GetItemRequest {
+        val captor = ArgumentCaptor.forClass(GetItemRequest::class.java)
+        verify(client).getItem(captor.capture())
+        return captor.value
+    }
 
     @Test
     fun `reporta UP quando a tabela responde`() {
-        given(client.describeTable(any(DescribeTableRequest::class.java))).willReturn(tabelaAtiva())
+        given(client.getItem(any(GetItemRequest::class.java))).willReturn(respostaVazia())
 
         val health = indicator.health()
 
         assertEquals(Status.UP, health.status)
         assertEquals(TABELA, health.details["table"])
-        assertEquals("ACTIVE", health.details["tableStatus"])
     }
 
     /**
@@ -46,28 +46,49 @@ class DynamoDbHealthIndicatorTest {
      */
     @Test
     fun `reporta DOWN quando o banco esta inacessivel`() {
-        given(client.describeTable(any(DescribeTableRequest::class.java)))
+        given(client.getItem(any(GetItemRequest::class.java)))
             .willThrow(SdkClientException.builder().message("connection refused").build())
 
-        val health = indicator.health()
+        assertEquals(Status.DOWN, indicator.health().status)
+    }
 
-        assertEquals(Status.DOWN, health.status)
-        assertEquals(TABELA, health.details["table"])
+    /** Tabela ausente é um cenário real de deploy em ambiente novo, sem migração aplicada. */
+    @Test
+    fun `reporta DOWN quando a tabela nao existe`() {
+        given(client.getItem(any(GetItemRequest::class.java)))
+            .willThrow(ResourceNotFoundException.builder().message("requested resource not found").build())
+
+        assertEquals(Status.DOWN, indicator.health().status)
     }
 
     /**
-     * `DescribeTable` em vez de uma leitura de item: confere conectividade, credenciais e
-     * existência da tabela sem consumir capacidade de leitura a cada probe — que roda de segundos
-     * em segundos, para sempre.
+     * Usa `GetItem`, não `DescribeTable`.
+     *
+     * `DescribeTable` é operação de *control plane*: o limite de taxa é muito menor e
+     * compartilhado por conta e região, não por tabela. Com a probe batendo a cada poucos
+     * segundos, multiplicada por réplicas e por outras aplicações da mesma conta, ela vira fonte
+     * de throttling — e aí a verificação derrubaria a readiness de instâncias saudáveis.
      */
     @Test
-    fun `consulta a tabela configurada sem consumir capacidade de leitura`() {
-        given(client.describeTable(any(DescribeTableRequest::class.java))).willReturn(tabelaAtiva())
+    fun `verifica pelo caminho de dados, nao pelo control plane`() {
+        given(client.getItem(any(GetItemRequest::class.java))).willReturn(respostaVazia())
 
         indicator.health()
 
-        val captor = ArgumentCaptor.forClass(DescribeTableRequest::class.java)
-        verify(client).describeTable(captor.capture())
-        assertEquals(TABELA, captor.value.tableName())
+        assertEquals(TABELA, requisicaoCapturada().tableName())
+    }
+
+    /**
+     * A chave da sonda é fixa e sabidamente inexistente: a resposta vazia é o resultado esperado,
+     * e o que se verifica é que a chamada completou. Assim a probe não depende de nenhum dado
+     * real da tabela nem consome capacidade relevante.
+     */
+    @Test
+    fun `consulta uma chave reservada, sem depender de dados reais`() {
+        given(client.getItem(any(GetItemRequest::class.java))).willReturn(respostaVazia())
+
+        indicator.health()
+
+        assertEquals("health-probe", requisicaoCapturada().key()["accountId"]?.s())
     }
 }
