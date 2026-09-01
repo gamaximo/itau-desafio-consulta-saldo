@@ -25,6 +25,7 @@ curl http://localhost:8080/balances/{accountId}                  # consulta o sa
 - [Configuração](#configuração)
 - [Testes](#testes)
 - [Estrutura de pastas](#estrutura-de-pastas)
+- [Sobre o uso de IA](#sobre-o-uso-de-ia)
 
 ## Arquitetura
 
@@ -604,3 +605,78 @@ src/integrationTest/     # integração (infra real)
 infra/                   # seeds e geradores de eventos
 http/                    # requisições .http prontas
 ```
+
+## Sobre o uso de IA
+
+Usei IA como par de programação neste desafio (Claude Code), e descrevo aqui como conduzi o
+trabalho — o que decidi, o que deleguei e como cada conclusão foi verificada.
+
+O princípio que segui: **a IA escreve e executa, as decisões de projeto são minhas, e nada entra
+sem verificação por execução.** Toda afirmação técnica deste README foi confirmada rodando a
+aplicação, não aceita porque o modelo afirmou.
+
+### Como conduzi
+
+Comecei pedindo a leitura da especificação e um plano, antes de qualquer código. A partir dele,
+tomei as decisões estruturais, sempre pedindo as alternativas e os trade-offs antes de escolher:
+
+| Decisão | O que pesou |
+|-|-|
+| Kotlin em vez de Java | familiaridade e concisão para modelar o domínio |
+| Flag `apply-declined-transactions` em vez de regra fixa | a especificação é ambígua sobre DECLINED; preferi tornar a ambiguidade explícita e configurável a escondê-la no código |
+| Remover o código de exemplo do starter-kit | manter saudações convivendo com consulta de saldo faria o avaliador gastar tempo separando o que é meu do que é template |
+| **Não implementar circuit breaker** | pedi a análise, vi que não existe `resilience4j-spring-boot4` e que o consumidor já tem o Kafka como buffer; decidi documentar o desenho em vez de adicionar dependência arriscada |
+| Português em comentários, testes e logs | o avaliador lê em português; a saída dos testes vira documentação |
+
+### Perguntas que mudaram o código
+
+Estas não produziram apenas resposta — produziram mudança na solução:
+
+**"E se não houver `accountId` para fazer a busca?"** — investigações de suporte partem do
+titular, não da conta. Isso levou à análise do GSI por `owner` documentada na
+[decisão 2](#2-modelagem-no-dynamodb), à conclusão de que o índice responderia de forma
+incompleta, e à solução que ficou: `owner` como campo indexável no log, nos dois caminhos.
+
+**"Como está o critério de production readiness?"** — a auditoria revelou que o `application.yaml`
+afirmava que um contêiner sem DynamoDB sairia do balanceamento, mas nenhum indicador verificava o
+banco. A documentação descrevia um comportamento que não existia. Virou o `DynamoDbHealthIndicator`.
+
+**"Me mostre os logs de uma execução ponta a ponta"** — a leitura revelou três defeitos: nenhuma
+requisição HTTP era registrada, a causa raiz no dead letter topic estava escondida atrás do
+wrapper do Spring, e os identificadores não eram pesquisáveis por estarem dentro do texto.
+
+**"Não faz sentido logar a mensagem commitada, certo?"** — essa evitou código. A conclusão foi que
+o commit já é observável pelo *consumer lag*, que é métrica, e que o registro do que foi salvo já
+existe no próprio item persistido. Optei por não adicionar log nenhum.
+
+### O que só apareceu executando
+
+Dois defeitos que nenhum de nós anteciparia, e que só os testes contra infraestrutura real
+expuseram:
+
+- **O DynamoDB remove zeros à direita.** Um saldo gravado como `300.00` volta como `300`, e a API
+  responderia `"amount": 300` para um saldo em reais. Nenhum teste unitário pegava. A correção foi
+  normalizar a escala no domínio pela moeda — não afrouxar a asserção do teste.
+- **Habilitar `problemdetails` sobrepôs handlers próprios.** Dois testes quebraram ao ligar a
+  propriedade, revelando uma disputa de precedência entre advices que exigiu ordens opostas.
+
+É por isso que a suíte tem 11 testes de integração contra DynamoDB e Redpanda reais, e não apenas
+unitários com mocks: um mock teria confirmado a expressão da escrita condicional, mas não o
+comportamento do banco.
+
+### O que a IA fez
+
+Escreveu o código sob as decisões acima, pesquisou as APIs do Spring Boot 4 quando o conhecimento
+prévio não era confiável — foi assim que descobrimos que `ExponentialBackOffWithMaxRetries` não
+existe mais e que o `HealthIndicator` mudou de pacote —, executou testes e a stack completa, e
+apresentou opções com trade-offs quando havia mais de um caminho defensável.
+
+Também errou e foi corrigida no processo: uma data calculada errada num teste, um YAML com chave
+duplicada que derrubou o contexto, e uma sequência de merges fora de ordem que deixou commits para
+trás. Todos apareceram na execução e foram corrigidos antes de seguir.
+
+### Onde verificar
+
+O histórico do repositório é a evidência: cada pull request registra o que mudou, por quê, e a
+verificação correspondente — incluindo as que existem justamente por causa de um defeito
+encontrado depois de o código já estar escrito.
