@@ -2,7 +2,6 @@ package br.com.itau.challenge.balance.adapter.output.dynamodb
 
 import br.com.itau.challenge.balance.domain.model.AccountBalance
 import br.com.itau.challenge.balance.port.output.AccountBalanceProvider
-import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import software.amazon.awssdk.core.exception.SdkException
@@ -39,10 +38,7 @@ class DynamoDbAccountBalanceProvider(
             try {
                 dynamoDbClient.getItem(request)
             } catch (exception: SdkException) {
-                throw AccountBalanceStorageException(
-                    "Falha ao ler o saldo da conta '$accountId'",
-                    exception,
-                )
+                throw exception.toStorageFailure("Falha ao ler o saldo da conta '$accountId'")
             }
 
         // `hasItem()` distingue item ausente de resposta vazia; o GetItem devolve um mapa vazio,

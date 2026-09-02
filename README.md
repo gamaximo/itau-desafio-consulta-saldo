@@ -142,6 +142,13 @@ flowchart LR
     T -->|qualquer outra| B[retry 3x<br/>depois DLT]
 ```
 
+Nem todo erro do banco entra na primeira categoria. Throttling, `5xx` e falha de rede melhoram
+sozinhos; já um `4xx` — item acima do limite de tamanho, atributo com tipo inválido — significa que
+a **requisição** está errada, e ela vai falhar exatamente igual daqui a 30 minutos. Tratar os dois
+igual ocuparia a partição por meia hora retentando o impossível, com as mensagens boas esperando
+atrás. Por isso o adaptador classifica antes de traduzir, e o `4xx` vai direto ao dead letter
+topic.
+
 A distinção entre a primeira e a terceira é a que evita quarentenar transação válida.
 Indisponibilidade **melhora sozinha**; um defeito no código, não. Com um backoff curto para os
 dois casos, poucos segundos de banco fora bastam para mandar eventos legítimos ao dead letter
