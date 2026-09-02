@@ -111,29 +111,35 @@ class KafkaConsumerConfigTest {
     /**
      * A distinção que evita quarentenar transações válidas.
      *
-     * Com um backoff único e finito, uma indisponibilidade de poucos segundos do banco manda
-     * eventos legítimos ao dead letter topic — e recuperá-los passa a exigir intervenção manual,
-     * enquanto o saldo daquelas contas fica desatualizado sem nada acusar. Medido: 35 segundos de
-     * DynamoDB fora bastaram para dois eventos válidos serem quarentenados.
+     * Com um backoff único e curto, uma indisponibilidade de poucos segundos manda eventos
+     * legítimos ao dead letter topic — e recuperá-los passa a exigir intervenção manual, enquanto
+     * o saldo daquelas contas fica desatualizado sem nada acusar. Medido: 35 segundos de DynamoDB
+     * fora bastaram para dois eventos válidos serem quarentenados.
      *
-     * Indisponibilidade melhora sozinha; bug não. Por isso as políticas são diferentes.
+     * Longo, porém finito: retentar para sempre trocaria esse problema por um pior — a partição
+     * parada indefinidamente, e sem alarme próprio, já que o Spring Kafka registra as tentativas
+     * apenas em DEBUG.
      */
     @Test
-    fun `indisponibilidade do armazenamento e retentada sem limite`() {
+    fun `indisponibilidade do armazenamento e retentada por muito tempo antes de desistir`() {
         val causaAninhada =
             RuntimeException("falha no listener", AccountBalanceStorageException("banco fora", RuntimeException()))
 
         val execucao = backOffFor(causaAninhada).start()
-        val esperas = (1..500).map { execucao.nextBackOff() }
+        val esperas =
+            generateSequence { execucao.nextBackOff() }.takeWhile { it != BackOffExecution.STOP }.toList()
 
-        assertEquals(
-            emptyList(),
-            esperas.filter { it == BackOffExecution.STOP },
-            "não pode desistir: o evento só falhou porque a dependência está fora",
+        assertTrue(
+            esperas.size > 50,
+            "poucas tentativas quarentenariam transações válidas numa indisponibilidade curta",
+        )
+        assertTrue(
+            esperas.sum() >= 25 * 60 * 1_000,
+            "precisa insistir por dezenas de minutos: é o que cobre um deploy ou failover",
         )
         assertTrue(
             esperas.all { it <= 31_000 },
-            "a espera precisa saturar num teto: crescer sem limite deixaria o consumidor dormindo por horas",
+            "a espera satura num teto: crescer sem limite deixaria o consumidor dormindo por horas",
         )
     }
 
