@@ -57,6 +57,15 @@ balance:
   # Define se uma transação DECLINED atualiza o saldo armazenado. Veja ProcessTransactionService
   # para o racional completo por trás do padrão.
   apply-declined-transactions: ${APPLY_DECLINED_TRANSACTIONS:true}
+  replay:
+    # Liga o modo de reprocessamento. Não muda o que a aplicação faz — ela consome e projeta do
+    # mesmo jeito — mas ativa uma proteção: com este toggle ligado, subir usando o group-id de
+    # produção falha na inicialização, em vez de deixar a instância de replay disputar as
+    # partições com quem está servindo. Ver `make replay` e o runbook no README.
+    enabled: ${REPLAY_MODE:false}
+    # O group-id que a proteção considera "de produção". Fica explícito para que a comparação não
+    # dependa de o padrão do consumidor nunca mudar.
+    production-group-id: ${PRODUCTION_GROUP_ID:balance-transaction-consumer}
   # Quão adiantado um evento pode estar em relação ao nosso relógio antes de ser rejeitado.
   # Protege contra o cenário em que um timestamp absurdamente no futuro — erro de unidade no
   # produtor, ou relógio adiantado — vence todos os eventos seguintes e congela a conta em
