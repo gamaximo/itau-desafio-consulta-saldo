@@ -136,14 +136,23 @@ Basta o produtor enviar nanossegundos em vez de microssegundos. Eventos além de
 ```mermaid
 flowchart LR
     F[falha] --> T{tipo?}
-    T -->|transitória| R[retry 3x<br/>500ms → 2s + jitter]
-    R --> S[aplica ou DLT]
-    T -->|payload inválido| DLT[DLT direto,<br/>sem retry]
+    T -->|banco indisponível| I[retry SEM limite<br/>até 30s entre tentativas]
+    I --> V[volta sozinho<br/>quando o banco volta]
+    T -->|payload inválido| D[DLT direto,<br/>sem retry]
+    T -->|qualquer outra| B[retry 3x<br/>depois DLT]
 ```
 
-Retentar um payload malformado não adianta — e travaria a partição inteira atrás dele. O jitter
-existe porque um throttle do DynamoDB atinge todas as threads ao mesmo tempo, e backoff idêntico
-as faria retentar em sincronia.
+A distinção entre a primeira e a terceira é a que evita quarentenar transação válida.
+Indisponibilidade **melhora sozinha**; um defeito no código, não. Com um backoff finito para os
+dois casos, poucos segundos de banco fora bastam para mandar eventos legítimos ao dead letter
+topic — medido: 35 segundos derrubaram dois eventos válidos. Retentando sem limite, o offset não
+avança, o lag cresce, e o backlog é drenado sozinho quando a dependência volta. É para isso que o
+Kafka serve como buffer, e o sintoma é visível e alertável.
+
+Retentar um payload malformado, ao contrário, não adianta nunca — e travaria a partição inteira
+atrás dele. O jitter existe porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e
+backoff idêntico as faria martelar o banco em ondas sincronizadas no momento em que ele se
+recupera.
 
 **Timeouts explícitos no AWS SDK**, cujo `apiCallTimeout` padrão é *ilimitado*: sem ele, uma
 partição que para de responder prende uma thread do Tomcat para sempre.
@@ -416,6 +425,13 @@ decisões estruturais — sempre pedindo alternativas e trade-offs antes de esco
 
 **Habilitar `problemdetails` sobrepôs handlers próprios.** Dois testes quebraram ao ligar a
 propriedade, revelando uma disputa de precedência entre advices.
+
+**Indisponibilidade do banco quarentenava transações válidas.** O README afirmava que "o Kafka já
+é o buffer: se o banco cai, o offset não avança e o backlog é drenado depois" — mas o backoff era
+finito para qualquer falha. Medido: 35 segundos de DynamoDB fora mandaram dois eventos legítimos ao
+dead letter topic, de onde só sairiam por intervenção manual. Agora a política depende do tipo da
+falha, e o mesmo teste com 45 segundos fora resulta em zero quarentenados e cinco contas
+recuperadas sozinhas.
 
 **Identificadores não eram normalizados.** Um evento com `accountId` em maiúsculas era gravado
 naquela grafia, mas a API converte o path para `UUID` antes de consultar — o que sempre produz

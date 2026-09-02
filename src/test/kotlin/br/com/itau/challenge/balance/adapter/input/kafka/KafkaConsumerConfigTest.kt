@@ -3,10 +3,12 @@ package br.com.itau.challenge.balance.adapter.input.kafka
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.util.backoff.BackOffExecution
 import org.springframework.util.backoff.ExponentialBackOff
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.assertNotNull
 
 private const val TOPIC = "transacoes-financeiras-processadas"
@@ -104,5 +106,41 @@ class KafkaConsumerConfigTest {
         val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java))
 
         assertNotNull(handler)
+    }
+
+    /**
+     * A distinção que evita quarentenar transações válidas.
+     *
+     * Com um backoff único e finito, uma indisponibilidade de poucos segundos do banco manda
+     * eventos legítimos ao dead letter topic — e recuperá-los passa a exigir intervenção manual,
+     * enquanto o saldo daquelas contas fica desatualizado sem nada acusar. Medido: 35 segundos de
+     * DynamoDB fora bastaram para dois eventos válidos serem quarentenados.
+     *
+     * Indisponibilidade melhora sozinha; bug não. Por isso as políticas são diferentes.
+     */
+    @Test
+    fun `indisponibilidade do armazenamento e retentada sem limite`() {
+        val causaAninhada =
+            RuntimeException("falha no listener", AccountBalanceStorageException("banco fora", RuntimeException()))
+
+        val execucao = backOffFor(causaAninhada).start()
+        val esperas = (1..500).map { execucao.nextBackOff() }
+
+        assertEquals(
+            emptyList(),
+            esperas.filter { it == BackOffExecution.STOP },
+            "não pode desistir: o evento só falhou porque a dependência está fora",
+        )
+        assertTrue(
+            esperas.all { it <= 31_000 },
+            "a espera precisa saturar num teto: crescer sem limite deixaria o consumidor dormindo por horas",
+        )
+    }
+
+    @Test
+    fun `qualquer outra falha desiste e vai para o dead letter topic`() {
+        val execucao = backOffFor(IllegalStateException("bug")).start()
+        val esperas = generateSequence { execucao.nextBackOff() }.takeWhile { it != BackOffExecution.STOP }.toList()
+        assertEquals(3, esperas.size, "um defeito no código não melhora sozinho, então desiste")
     }
 }
