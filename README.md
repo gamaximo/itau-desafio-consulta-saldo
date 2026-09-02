@@ -469,6 +469,72 @@ flagrar a contradição. O que resta contra esse erro é operacional: o script s
 diferente do de produção. Um serviço com mais frotas legítimas provavelmente quer a intenção
 declarada de volta.
 
+### Reprocessar só a partir de um horário
+
+Reler o tópico inteiro é o caminho padrão, mas raramente é o necessário: quando se sabe a que horas
+o problema começou, reprocessar as últimas horas basta e custa uma fração.
+
+O posicionamento é feito **no grupo, antes de subir a instância** — não pela aplicação. O grupo de
+replay é novo e não tem membros, então mover seus offsets é seguro; o broker resolve o horário para
+o offset correto em cada partição.
+
+Localmente:
+
+```bash
+docker compose exec redpanda rpk group seek balance-replay-2026-09-02 \
+  --to 1788380415676 --topics transacoes-financeiras-processadas --allow-new-topics
+```
+
+O resultado mostra que a resolução é real, e não um corte uniforme — cada partição recebe o offset
+que corresponde àquele instante nela:
+
+```
+TOPIC                               PARTITION  PRIOR-OFFSET  CURRENT-OFFSET
+transacoes-financeiras-processadas  0          -1            0     # vazia
+transacoes-financeiras-processadas  1          -1            0     # tudo posterior ao corte
+transacoes-financeiras-processadas  2          -1            6     # tudo anterior, pulada
+```
+
+Feito isso, sobe-se a instância com esse mesmo `group.id`. Como o grupo já tem offsets commitados,
+`auto-offset-reset` não se aplica e o consumo começa no corte.
+
+**Na AWS (MSK).** O comando equivalente é o `kafka-consumer-groups.sh`, executado antes do
+`run-task` do replay:
+
+```bash
+kafka-consumer-groups.sh --bootstrap-server "$BROKERS" \
+  --group balance-replay-2026-09-02 --topic transacoes-financeiras-processadas \
+  --reset-offsets --to-datetime 2026-09-02T14:30:00.000 --execute
+```
+
+Ele precisa de rota de rede até o broker, que fica em subnet privada — e a imagem da aplicação não
+traz as ferramentas do Kafka. O caminho mais direto é pedir ao próprio ECS um contêiner
+descartável com elas, na mesma rede das tasks:
+
+```bash
+aws ecs run-task --cluster producao --launch-type FARGATE \
+  --task-definition kafka-tools:1 \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-a],securityGroups=[sg-xxx]}" \
+  --overrides '{"containerOverrides":[{"name":"kafka-tools","command":[
+      "kafka-consumer-groups.sh","--bootstrap-server","BROKERS",
+      "--group","balance-replay-2026-09-02","--topic","transacoes-financeiras-processadas",
+      "--reset-offsets","--to-datetime","2026-09-02T14:30:00.000","--execute"]}]}'
+```
+
+Serve igualmente um bastion na VPC por SSM Session Manager, ou o CloudShell num *VPC environment* —
+o requisito é só alcançar o broker pela rede. **Não** é preciso "entrar" numa task da aplicação: o
+ECS não é uma máquina onde se entra, e a task do replay não participa deste passo.
+
+**Dois cuidados.**
+
+O horário é o da **mensagem no tópico** — quando o evento foi publicado —, não o
+`transaction.timestamp` do payload. Para "reprocessar a partir de quando o problema começou" é
+normalmente o que se quer, mas os dois divergem se o produtor atrasou a publicação.
+
+E isto vale apenas para um grupo **novo**. O Kafka recusa mover offsets de um grupo com membros
+ativos, então não há como aplicar ao grupo de produção sem parar a aplicação — que é exatamente o
+que o desenho de instância adicional evita.
+
 ### Três cuidados em produção
 
 **Capacidade do DynamoDB.** O replay gera uma rajada de escrita. Em *on-demand* escala sozinho; em
@@ -476,7 +542,8 @@ declarada de volta.
 vale subir a capacidade antes ou escolher uma janela de baixo movimento.
 
 **Retenção do tópico.** Só se reprocessa o que ainda está no broker. Se a retenção é de sete dias,
-"reprocessar tudo" significa os últimos sete dias.
+"reprocessar tudo" significa os últimos sete dias — e quando o recorte que interessa é menor, o
+posicionamento por horário evita reler o resto.
 
 **Transferência de dados.** Reler o tópico inteiro gera tráfego de rede, cobrado quando as tasks
 ficam em zona diferente dos brokers.
