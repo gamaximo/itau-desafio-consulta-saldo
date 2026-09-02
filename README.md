@@ -136,18 +136,21 @@ Basta o produtor enviar nanossegundos em vez de microssegundos. Eventos além de
 ```mermaid
 flowchart LR
     F[falha] --> T{tipo?}
-    T -->|banco indisponível| I[retry SEM limite<br/>até 30s entre tentativas]
+    T -->|banco indisponível| I[retry por até 30min<br/>espera até 30s]
     I --> V[volta sozinho<br/>quando o banco volta]
     T -->|payload inválido| D[DLT direto,<br/>sem retry]
     T -->|qualquer outra| B[retry 3x<br/>depois DLT]
 ```
 
 A distinção entre a primeira e a terceira é a que evita quarentenar transação válida.
-Indisponibilidade **melhora sozinha**; um defeito no código, não. Com um backoff finito para os
+Indisponibilidade **melhora sozinha**; um defeito no código, não. Com um backoff curto para os
 dois casos, poucos segundos de banco fora bastam para mandar eventos legítimos ao dead letter
-topic — medido: 35 segundos derrubaram dois eventos válidos. Retentando sem limite, o offset não
-avança, o lag cresce, e o backlog é drenado sozinho quando a dependência volta. É para isso que o
-Kafka serve como buffer, e o sintoma é visível e alertável.
+topic — medido: 35 segundos derrubaram dois eventos válidos. Insistindo por 30 minutos, o offset
+não avança, o lag cresce, e o backlog é drenado sozinho quando a dependência volta.
+
+Longo, porém **finito**. Retentar para sempre trocaria esse problema por um pior: a partição
+parada indefinidamente e sem alarme próprio, já que o Spring Kafka registra as tentativas apenas
+em `DEBUG` — o sintoma seria um lag crescendo sem nenhuma linha de log explicando.
 
 Retentar um payload malformado, ao contrário, não adianta nunca — e travaria a partição inteira
 atrás dele. O jitter existe porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e
@@ -209,6 +212,12 @@ duração e origem; o actuator fica de fora para as probes não afogarem o agreg
 
 O caminho feliz fica em `DEBUG` — o rastro definitivo está no item persistido e no evento retido
 pelo Kafka. Investigação pontual: subir o nível do pacote, sem deploy.
+
+**Health do Kafka fora das probes.** Com o broker fora, a API segue respondendo consultas e a
+readiness segue `UP` — correto, porque a leitura vem do DynamoDB e derrubar a instância degradaria
+o serviço que ainda funciona. Mas sem um indicador, nada revelaria que a **ingestão** parou: os
+saldos congelariam em silêncio. O componente `kafka` entra no health geral, para monitoração, e
+fora de liveness e readiness, para que nenhuma decisão do orquestrador dependa dele.
 
 **Health com readiness que reflete a dependência.** Um `HealthIndicator` verifica a tabela e entra
 apenas no grupo de readiness — a liveness segue sem dependências externas, porque cair junto

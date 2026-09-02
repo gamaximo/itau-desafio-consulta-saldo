@@ -79,18 +79,29 @@ private fun defaultBackOff(): ExponentialBackOff =
     }
 
 /**
- * Backoff **sem limite de tentativas**, com espera crescendo até 30s: para indisponibilidade da
- * dependência, que melhora sozinha quando ela volta.
+ * Backoff longo para indisponibilidade da dependência: espera crescendo até 30s, insistindo por
+ * até 30 minutos no total.
  *
- * O jitter é maior aqui porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e
- * sem dispersão elas voltariam a martelar o banco em ondas sincronizadas no exato momento em que
- * ele tenta se recuperar.
+ * **Longo, e não infinito.** Retentar para sempre parece a resposta certa — a dependência volta,
+ * o backlog é drenado — mas cria um modo de falha pior que o problema: se a causa nunca melhorar,
+ * a partição fica parada indefinidamente e sem alarme próprio, porque durante os retries o Spring
+ * Kafka registra as tentativas apenas em DEBUG. O sintoma seria um lag crescendo sem nenhuma
+ * linha de log explicando.
+ *
+ * Trinta minutos cobrem com folga o que se espera de uma indisponibilidade real — deploy,
+ * failover, throttling prolongado — e ainda assim garantem que a partição volte a andar. Passado
+ * esse tempo o evento é quarentenado no dead letter topic, onde é visível e reprocessável.
+ *
+ * O jitter é maior aqui porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e sem
+ * dispersão elas voltariam a martelar o banco em ondas sincronizadas no momento em que ele tenta
+ * se recuperar.
  */
-private fun unlimitedBackOff(): ExponentialBackOff =
+private fun storageBackOff(): ExponentialBackOff =
     ExponentialBackOff().apply {
         initialInterval = 1_000
         multiplier = 2.0
         maxInterval = 30_000
+        maxElapsedTime = 30 * 60 * 1_000L
         jitter = 1_000
     }
 
@@ -102,7 +113,7 @@ private fun unlimitedBackOff(): ExponentialBackOff =
  * apenas por um teste de integração com o banco fora do ar.
  */
 internal fun backOffFor(exception: Throwable): BackOff =
-    if (exception.isCausedByStorageUnavailability()) unlimitedBackOff() else defaultBackOff()
+    if (exception.isCausedByStorageUnavailability()) storageBackOff() else defaultBackOff()
 
 /** A causa raiz importa: o Spring Kafka envolve a exceção do listener antes de entregá-la aqui. */
 private fun Throwable.isCausedByStorageUnavailability(): Boolean =
@@ -135,9 +146,9 @@ class KafkaConsumerConfig {
      * Separa as falhas em três categorias, cada uma com uma política própria.
      *
      * **Indisponibilidade do armazenamento** — [AccountBalanceStorageException]: throttling,
-     * conexão caída, timeout. Retentada **sem limite de tentativas**, com espera crescendo até
-     * 30s. É o único comportamento correto para um evento que só falha porque a dependência está
-     * fora: o offset não avança, o lag cresce, e quando o banco volta o backlog é drenado sozinho.
+     * conexão caída, timeout. Retentada por até **30 minutos**, com espera crescendo até 30s. É o
+     * comportamento correto para um evento que só falha porque a dependência está fora: o offset
+     * não avança, o lag cresce, e quando o banco volta o backlog é drenado sozinho.
      *
      * Um limite aqui seria uma armadilha silenciosa. Com backoff finito, uma indisponibilidade de
      * poucos segundos manda **transações válidas** para o dead letter topic, e recuperá-las passa
@@ -147,7 +158,8 @@ class KafkaConsumerConfig {
      *
      * O preço é a partição parar de avançar durante a indisponibilidade. É o preço certo: o Kafka
      * existe para ser esse buffer, e o sintoma — lag crescendo — é visível, alertável e se resolve
-     * sozinho quando a dependência volta.
+     * sozinho quando a dependência volta. O limite de 30 minutos existe para que "parar de
+     * avançar" nunca vire "parar para sempre".
      *
      * **Inprocessável** — [InvalidTransactionEventException]: payload malformado, enum
      * desconhecido, timestamp implausível. Retentar não adianta, e insistir prenderia o consumidor
