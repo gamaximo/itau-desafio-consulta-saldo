@@ -6,6 +6,8 @@ import org.springframework.boot.health.contributor.HealthIndicator
 import org.springframework.kafka.core.KafkaAdmin
 import org.springframework.stereotype.Component
 
+private const val DEAD_LETTER_SUFFIX = ".DLT"
+
 /**
  * Reporta se o broker está alcançável — o único sinal de que a **ingestão** continua viva.
  *
@@ -34,22 +36,41 @@ class KafkaHealthIndicator(
     @Value("\${transactions.topic-name}") private val topicName: String,
 ) : HealthIndicator {
 
-    override fun health(): Health =
-        try {
-            // Descrever o próprio tópico consumido, em vez de apenas pingar o cluster: verifica de
-            // uma vez que o broker responde e que o tópico existe. Um tópico apagado por engano
-            // produz o mesmo sintoma de um broker fora — ingestão parada — e merece o mesmo alarme.
-            val descricao = kafkaAdmin.describeTopics(topicName)[topicName]
+    private val deadLetterName = topicName + DEAD_LETTER_SUFFIX
 
-            Health
-                .up()
-                .withDetail("topic", topicName)
-                .withDetail("partitions", descricao?.partitions()?.size ?: 0)
-                .build()
-        } catch (exception: Exception) {
-            Health
-                .down(exception)
-                .withDetail("topic", topicName)
-                .build()
+    override fun health(): Health {
+        // Um tópico por chamada, e não os dois de uma vez: `describeTopics` falha inteiro quando
+        // qualquer um dos nomes não existe, e a exceção não diz qual. Perguntando separadamente, o
+        // alarme aponta o tópico exato — a diferença entre "o Kafka caiu" e "alguém apagou o DLT",
+        // que pedem ações completamente diferentes.
+        val indisponiveis = listOf(topicName, deadLetterName).filterNot { existe(it) }
+
+        return when (indisponiveis.size) {
+            0 ->
+                Health
+                    .up()
+                    .withDetail("topic", topicName)
+                    .withDetail("deadLetterTopic", deadLetterName)
+                    .build()
+
+            // Nenhum dos dois responde: quase sempre é o broker fora, e não dois tópicos apagados
+            // no mesmo instante.
+            2 ->
+                Health
+                    .down()
+                    .withDetail("motivo", "o broker não respondeu ou nenhum dos tópicos existe")
+                    .withDetail("topicosIndisponiveis", indisponiveis)
+                    .build()
+
+            else ->
+                Health
+                    .down()
+                    .withDetail("motivo", "tópico ausente: a ingestão para, ou trava no primeiro evento inválido")
+                    .withDetail("topicosIndisponiveis", indisponiveis)
+                    .build()
         }
+    }
+
+    private fun existe(nome: String): Boolean =
+        runCatching { kafkaAdmin.describeTopics(nome).containsKey(nome) }.getOrDefault(false)
 }

@@ -219,6 +219,13 @@ o serviço que ainda funciona. Mas sem um indicador, nada revelaria que a **inge
 saldos congelariam em silêncio. O componente `kafka` entra no health geral, para monitoração, e
 fora de liveness e readiness, para que nenhuma decisão do orquestrador dependa dele.
 
+Ele verifica os dois tópicos separadamente, e não numa chamada só, para o alarme apontar qual
+falta — "o Kafka caiu" e "alguém apagou o DLT" pedem ações diferentes. A ausência do dead letter
+topic é a mais traiçoeira: o consumo segue normal até aparecer um payload inválido, e aí o
+recoverer não tem para onde publicar e a partição trava. Medido: com o DLT apagado, um evento
+inválido ficou preso com lag 1, e o tópico não volta sozinho — o `KafkaAdmin` só cria na
+inicialização.
+
 **Health com readiness que reflete a dependência.** Um `HealthIndicator` verifica a tabela e entra
 apenas no grupo de readiness — a liveness segue sem dependências externas, porque cair junto
 colocaria o orquestrador em ciclo de reinício durante a indisponibilidade. A verificação usa
