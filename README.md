@@ -136,14 +136,26 @@ Basta o produtor enviar nanossegundos em vez de microssegundos. Eventos além de
 ```mermaid
 flowchart LR
     F[falha] --> T{tipo?}
-    T -->|transitória| R[retry 3x<br/>500ms → 2s + jitter]
-    R --> S[aplica ou DLT]
-    T -->|payload inválido| DLT[DLT direto,<br/>sem retry]
+    T -->|banco indisponível| I[retry por até 30min<br/>espera até 30s]
+    I --> V[volta sozinho<br/>quando o banco volta]
+    T -->|payload inválido| D[DLT direto,<br/>sem retry]
+    T -->|qualquer outra| B[retry 3x<br/>depois DLT]
 ```
 
-Retentar um payload malformado não adianta — e travaria a partição inteira atrás dele. O jitter
-existe porque um throttle do DynamoDB atinge todas as threads ao mesmo tempo, e backoff idêntico
-as faria retentar em sincronia.
+A distinção entre a primeira e a terceira é a que evita quarentenar transação válida.
+Indisponibilidade **melhora sozinha**; um defeito no código, não. Com um backoff curto para os
+dois casos, poucos segundos de banco fora bastam para mandar eventos legítimos ao dead letter
+topic — medido: 35 segundos derrubaram dois eventos válidos. Insistindo por 30 minutos, o offset
+não avança, o lag cresce, e o backlog é drenado sozinho quando a dependência volta.
+
+Longo, porém **finito**. Retentar para sempre trocaria esse problema por um pior: a partição
+parada indefinidamente e sem alarme próprio, já que o Spring Kafka registra as tentativas apenas
+em `DEBUG` — o sintoma seria um lag crescendo sem nenhuma linha de log explicando.
+
+Retentar um payload malformado, ao contrário, não adianta nunca — e travaria a partição inteira
+atrás dele. O jitter existe porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e
+backoff idêntico as faria martelar o banco em ondas sincronizadas no momento em que ele se
+recupera.
 
 **Timeouts explícitos no AWS SDK**, cujo `apiCallTimeout` padrão é *ilimitado*: sem ele, uma
 partição que para de responder prende uma thread do Tomcat para sempre.
@@ -200,6 +212,19 @@ duração e origem; o actuator fica de fora para as probes não afogarem o agreg
 
 O caminho feliz fica em `DEBUG` — o rastro definitivo está no item persistido e no evento retido
 pelo Kafka. Investigação pontual: subir o nível do pacote, sem deploy.
+
+**Health do Kafka fora das probes.** Com o broker fora, a API segue respondendo consultas e a
+readiness segue `UP` — correto, porque a leitura vem do DynamoDB e derrubar a instância degradaria
+o serviço que ainda funciona. Mas sem um indicador, nada revelaria que a **ingestão** parou: os
+saldos congelariam em silêncio. O componente `kafka` entra no health geral, para monitoração, e
+fora de liveness e readiness, para que nenhuma decisão do orquestrador dependa dele.
+
+Ele verifica os dois tópicos separadamente, e não numa chamada só, para o alarme apontar qual
+falta — "o Kafka caiu" e "alguém apagou o DLT" pedem ações diferentes. A ausência do dead letter
+topic é a mais traiçoeira: o consumo segue normal até aparecer um payload inválido, e aí o
+recoverer não tem para onde publicar e a partição trava. Medido: com o DLT apagado, um evento
+inválido ficou preso com lag 1, e o tópico não volta sozinho — o `KafkaAdmin` só cria na
+inicialização.
 
 **Health com readiness que reflete a dependência.** Um `HealthIndicator` verifica a tabela e entra
 apenas no grupo de readiness — a liveness segue sem dependências externas, porque cair junto
@@ -416,6 +441,13 @@ decisões estruturais — sempre pedindo alternativas e trade-offs antes de esco
 
 **Habilitar `problemdetails` sobrepôs handlers próprios.** Dois testes quebraram ao ligar a
 propriedade, revelando uma disputa de precedência entre advices.
+
+**Indisponibilidade do banco quarentenava transações válidas.** O README afirmava que "o Kafka já
+é o buffer: se o banco cai, o offset não avança e o backlog é drenado depois" — mas o backoff era
+finito para qualquer falha. Medido: 35 segundos de DynamoDB fora mandaram dois eventos legítimos ao
+dead letter topic, de onde só sairiam por intervenção manual. Agora a política depende do tipo da
+falha, e o mesmo teste com 45 segundos fora resulta em zero quarentenados e cinco contas
+recuperadas sozinhas.
 
 **Identificadores não eram normalizados.** Um evento com `accountId` em maiúsculas era gravado
 naquela grafia, mas a API converte o path para `UUID` antes de consultar — o que sempre produz

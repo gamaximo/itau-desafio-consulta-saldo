@@ -3,10 +3,12 @@ package br.com.itau.challenge.balance.adapter.input.kafka
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
+import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.util.backoff.BackOffExecution
 import org.springframework.util.backoff.ExponentialBackOff
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 import kotlin.test.assertNotNull
 
 private const val TOPIC = "transacoes-financeiras-processadas"
@@ -104,5 +106,47 @@ class KafkaConsumerConfigTest {
         val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java))
 
         assertNotNull(handler)
+    }
+
+    /**
+     * A distinção que evita quarentenar transações válidas.
+     *
+     * Com um backoff único e curto, uma indisponibilidade de poucos segundos manda eventos
+     * legítimos ao dead letter topic — e recuperá-los passa a exigir intervenção manual, enquanto
+     * o saldo daquelas contas fica desatualizado sem nada acusar. Medido: 35 segundos de DynamoDB
+     * fora bastaram para dois eventos válidos serem quarentenados.
+     *
+     * Longo, porém finito: retentar para sempre trocaria esse problema por um pior — a partição
+     * parada indefinidamente, e sem alarme próprio, já que o Spring Kafka registra as tentativas
+     * apenas em DEBUG.
+     */
+    @Test
+    fun `indisponibilidade do armazenamento e retentada por muito tempo antes de desistir`() {
+        val causaAninhada =
+            RuntimeException("falha no listener", AccountBalanceStorageException("banco fora", RuntimeException()))
+
+        val execucao = backOffFor(causaAninhada).start()
+        val esperas =
+            generateSequence { execucao.nextBackOff() }.takeWhile { it != BackOffExecution.STOP }.toList()
+
+        assertTrue(
+            esperas.size > 50,
+            "poucas tentativas quarentenariam transações válidas numa indisponibilidade curta",
+        )
+        assertTrue(
+            esperas.sum() >= 25 * 60 * 1_000,
+            "precisa insistir por dezenas de minutos: é o que cobre um deploy ou failover",
+        )
+        assertTrue(
+            esperas.all { it <= 31_000 },
+            "a espera satura num teto: crescer sem limite deixaria o consumidor dormindo por horas",
+        )
+    }
+
+    @Test
+    fun `qualquer outra falha desiste e vai para o dead letter topic`() {
+        val execucao = backOffFor(IllegalStateException("bug")).start()
+        val esperas = generateSequence { execucao.nextBackOff() }.takeWhile { it != BackOffExecution.STOP }.toList()
+        assertEquals(3, esperas.size, "um defeito no código não melhora sozinho, então desiste")
     }
 }

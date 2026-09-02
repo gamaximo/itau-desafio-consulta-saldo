@@ -1,6 +1,7 @@
 package br.com.itau.challenge.balance.adapter.input.kafka
 
 import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventException
+import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.apache.kafka.clients.admin.NewTopic
 import org.apache.kafka.clients.consumer.ConsumerRecord
 import org.apache.kafka.common.TopicPartition
@@ -12,6 +13,7 @@ import org.springframework.kafka.config.TopicBuilder
 import org.springframework.kafka.core.KafkaTemplate
 import org.springframework.kafka.listener.DefaultErrorHandler
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer
+import org.springframework.util.backoff.BackOff
 import org.springframework.util.backoff.ExponentialBackOff
 
 private const val DEAD_LETTER_SUFFIX = ".DLT"
@@ -63,6 +65,61 @@ private fun rootCauseOf(exception: Throwable): String? {
     return causa.message
 }
 
+/**
+ * Backoff curto e finito: para falhas sem perspectiva de melhora sozinha, como um defeito no
+ * código. Depois destas tentativas o evento é quarentenado e o consumidor segue.
+ */
+private fun defaultBackOff(): ExponentialBackOff =
+    ExponentialBackOff().apply {
+        initialInterval = 500
+        multiplier = 2.0
+        maxInterval = 5_000
+        maxAttempts = 3
+        jitter = 100
+    }
+
+/**
+ * Backoff longo para indisponibilidade da dependência: espera crescendo até 30s, insistindo por
+ * até 30 minutos no total.
+ *
+ * **Longo, e não infinito.** Retentar para sempre parece a resposta certa — a dependência volta,
+ * o backlog é drenado — mas cria um modo de falha pior que o problema: se a causa nunca melhorar,
+ * a partição fica parada indefinidamente e sem alarme próprio, porque durante os retries o Spring
+ * Kafka registra as tentativas apenas em DEBUG. O sintoma seria um lag crescendo sem nenhuma
+ * linha de log explicando.
+ *
+ * Trinta minutos cobrem com folga o que se espera de uma indisponibilidade real — deploy,
+ * failover, throttling prolongado — e ainda assim garantem que a partição volte a andar. Passado
+ * esse tempo o evento é quarentenado no dead letter topic, onde é visível e reprocessável.
+ *
+ * O jitter é maior aqui porque uma indisponibilidade atinge todas as threads ao mesmo tempo, e sem
+ * dispersão elas voltariam a martelar o banco em ondas sincronizadas no momento em que ele tenta
+ * se recuperar.
+ */
+private fun storageBackOff(): ExponentialBackOff =
+    ExponentialBackOff().apply {
+        initialInterval = 1_000
+        multiplier = 2.0
+        maxInterval = 30_000
+        maxElapsedTime = 30 * 60 * 1_000L
+        jitter = 1_000
+    }
+
+/**
+ * A política de espera para uma falha, escolhida pelo tipo dela.
+ *
+ * Função nomeada em vez de lambda dentro do bean para poder ser testada diretamente — a diferença
+ * entre desistir e não desistir é a regra mais consequente deste arquivo, e ela ficaria coberta
+ * apenas por um teste de integração com o banco fora do ar.
+ */
+internal fun backOffFor(exception: Throwable): BackOff =
+    if (exception.isCausedByStorageUnavailability()) storageBackOff() else defaultBackOff()
+
+/** A causa raiz importa: o Spring Kafka envolve a exceção do listener antes de entregá-la aqui. */
+private fun Throwable.isCausedByStorageUnavailability(): Boolean =
+    generateSequence(this) { atual -> atual.cause?.takeIf { it !== atual } }
+        .any { it is AccountBalanceStorageException }
+
 @Configuration
 class KafkaConsumerConfig {
 
@@ -86,43 +143,43 @@ class KafkaConsumerConfig {
     ): NewTopic = TopicBuilder.name(topicName + DEAD_LETTER_SUFFIX).partitions(partitions).replicas(1).build()
 
     /**
-     * Separa as falhas nas duas únicas categorias que importam operacionalmente.
+     * Separa as falhas em três categorias, cada uma com uma política própria.
      *
-     * **Transitória** — throttling do DynamoDB, conexão caída, timeout. Retentada no lugar, com
-     * backoff exponencial, porque a próxima tentativa tem chance real de dar certo e o offset não
-     * pode avançar sobre um evento que nunca foi aplicado.
+     * **Indisponibilidade do armazenamento** — [AccountBalanceStorageException]: throttling,
+     * conexão caída, timeout. Retentada por até **30 minutos**, com espera crescendo até 30s. É o
+     * comportamento correto para um evento que só falha porque a dependência está fora: o offset
+     * não avança, o lag cresce, e quando o banco volta o backlog é drenado sozinho.
      *
-     * **Inprocessável** — [InvalidTransactionEventException]. Retentar não adianta: o payload vai
-     * continuar igualmente malformado daqui a 500ms. Pior, retentar indefinidamente prenderia o
-     * consumidor naquele offset e travaria todas as mensagens bem formadas que estivessem atrás
-     * dele na mesma partição — um registro ruim derrubando uma partição inteira. Esses vão direto
-     * para o dead letter topic, onde podem ser inspecionados e reprocessados depois que o produtor
-     * for corrigido.
+     * Um limite aqui seria uma armadilha silenciosa. Com backoff finito, uma indisponibilidade de
+     * poucos segundos manda **transações válidas** para o dead letter topic, e recuperá-las passa
+     * a exigir intervenção manual — enquanto o saldo daquelas contas fica desatualizado sem que
+     * nada acuse. Foi exatamente o que aconteceu num teste: 35 segundos de banco fora bastaram
+     * para dois eventos legítimos serem quarentenados.
+     *
+     * O preço é a partição parar de avançar durante a indisponibilidade. É o preço certo: o Kafka
+     * existe para ser esse buffer, e o sintoma — lag crescendo — é visível, alertável e se resolve
+     * sozinho quando a dependência volta. O limite de 30 minutos existe para que "parar de
+     * avançar" nunca vire "parar para sempre".
+     *
+     * **Inprocessável** — [InvalidTransactionEventException]: payload malformado, enum
+     * desconhecido, timestamp implausível. Retentar não adianta, e insistir prenderia o consumidor
+     * naquele offset, travando as mensagens boas atrás dele na mesma partição. Vai direto ao dead
+     * letter topic.
+     *
+     * **Qualquer outra** — um defeito nosso, um estado impossível. Backoff curto e finito, depois
+     * o dead letter topic. Retentar para sempre por causa de um bug travaria a partição sem
+     * previsão de melhora, que é justamente o que o caso da indisponibilidade tem e este não.
      */
     @Bean
     fun kafkaErrorHandler(kafkaTemplate: KafkaTemplate<*, *>): DefaultErrorHandler {
         val recoverer = DeadLetterPublishingRecoverer(kafkaTemplate, ::deadLetterDestinationFor)
 
-        // Limitado de propósito. Retentar para sempre transformaria a indisponibilidade de uma
-        // dependência numa parada sem fim; depois de três tentativas espalhadas por alguns
-        // segundos, o evento é posto em quarentena e o consumidor segue drenando a partição. O
-        // Kafka retém a mensagem original de qualquer forma, então nada se perde e um replay
-        // continua sempre possível.
-        val backOff =
-            ExponentialBackOff().apply {
-                initialInterval = 500
-                multiplier = 2.0
-                maxInterval = 5_000
-                maxAttempts = 3
-                // Espalha os retries quando várias threads do consumidor falham no mesmo instante
-                // — um throttle do DynamoDB costuma atingir todas de uma vez, e um backoff
-                // idêntico faria todas retentarem em sincronia, voltando a estrangular a tabela a
-                // cada onda.
-                jitter = 100
-            }
-
-        return DefaultErrorHandler(recoverer, backOff).apply {
+        return DefaultErrorHandler(recoverer, defaultBackOff()).apply {
             addNotRetryableExceptions(InvalidTransactionEventException::class.java)
+            // A política passa a depender do tipo da falha: sem isto, um único backoff finito
+            // valeria tanto para um bug quanto para o banco estar fora, e os dois têm perspectivas
+            // completamente diferentes de melhorar sozinhos.
+            setBackOffFunction { _, exception -> backOffFor(exception) }
         }
     }
 }
