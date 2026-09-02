@@ -103,6 +103,10 @@ kafka-produce-scenario: ## Produce a fixed out-of-order + duplicate + invalid sc
 	$(COMPOSE) run --rm --entrypoint /bin/bash redpanda-seed \
 		/redpanda-seed/produce-scenario.sh $(TOPIC) $(ACCOUNT)
 
+.PHONY: replay
+replay: ## Reprocessa o tópico numa instância adicional, sem parar a aplicação
+	./infra/replay.sh
+
 .PHONY: kafka-consume
 kafka-consume: ## Print all messages on a Kafka topic (usage: make kafka-consume TOPIC=my-topic)
 	@if [ -z "$(TOPIC)" ]; then \

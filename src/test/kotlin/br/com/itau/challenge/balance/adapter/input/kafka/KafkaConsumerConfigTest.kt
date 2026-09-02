@@ -103,7 +103,7 @@ class KafkaConsumerConfigTest {
 
     @Test
     fun `constrói o error handler`() {
-        val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java))
+        val handler = config.kafkaErrorHandler(mock(KafkaTemplate::class.java), "balance-transaction-consumer")
 
         assertNotNull(handler)
     }

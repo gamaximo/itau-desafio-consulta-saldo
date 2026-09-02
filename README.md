@@ -16,7 +16,7 @@ curl http://localhost:8080/balances/{accountId}                       # consulta
 
 - [Arquitetura](#arquitetura) · [Decisões](#decisões-de-design) · [Fora de escopo](#o-que-não-foi-implementado)
 - [Como rodar](#como-rodar) · [Cenários difíceis](#como-verificar-os-cenários-difíceis) · [Contrato](#contrato-da-api)
-- [Configuração](#configuração) · [Testes](#testes) · [Uso de IA](#sobre-o-uso-de-ia)
+- [Configuração](#configuração) · [Reprocessamento](#runbook-reprocessar-o-tópico) · [Testes](#testes) · [Uso de IA](#sobre-o-uso-de-ia)
 
 ## Arquitetura
 
@@ -363,6 +363,7 @@ todos em `application/problem+json`.
 | `MAX_CLOCK_SKEW` | `5m` | tolerância para eventos adiantados |
 | `API_TIME_ZONE` | `America/Sao_Paulo` | fuso de `updated_at` |
 | `LOG_FORMAT` | *(vazio)* | `ecs` para JSON estruturado |
+| `REPLAY_MODE` | `false` | modo de reprocessamento — ver [runbook](#runbook-reprocessar-o-tópico) |
 
 ### Sobre `apply-declined-transactions`
 
@@ -373,6 +374,110 @@ regra escondida.
 microssegundo. Descartar significaria ignorar a leitura mais recente do sistema. Com `false`, só
 APPROVED atualiza — leitura mais conservadora, correta se o autorizador emitir saldo
 pré-autorização nas recusas. A corretude se mantém nos dois modos; muda o frescor.
+
+## Runbook: reprocessar o tópico
+
+O saldo é uma projeção determinística do tópico, então reconstruí-lo é operação de rotina. Provado
+em teste: reprocessar tudo produziu um estado **byte a byte idêntico** — mesmo hash das 518 contas
+antes e depois. Num serviço que acumulasse saldo, o mesmo procedimento duplicaria todos os valores.
+
+O reprocessamento sobe uma instância **adicional**, com `group.id` exclusivo, enquanto a de
+produção segue atendendo. Grupos de consumo têm offsets independentes, então uma não interfere na
+outra; as duas gravam na mesma tabela, o que é inofensivo porque a escrita condicional descarta o
+que já foi aplicado. Nenhuma janela de indisponibilidade é necessária.
+
+### Localmente
+
+```bash
+make replay
+```
+
+`infra/replay.sh` gera um `group.id` único, sobe a instância com `REPLAY_MODE=true`, acompanha o
+lag até zerar e a derruba. O actuator dela fica em `localhost:8090`, separado da produção. Saída de
+uma execução real:
+
+```
+group-id do replay: balance-replay-20260902-115630
+  lag: 0
+  reprocessamento concluído
+    balance_transactions_processed_total{outcome="applied"}              0.0
+    balance_transactions_processed_total{outcome="duplicate_discarded"}  120.0
+```
+
+Tudo relido, nada alterado — e a instância de produção manteve as métricas intactas durante todo o
+processo.
+
+### Em produção na AWS (ECS)
+
+Não é preciso novo *service* nem nova task definition. Uma **task avulsa**, reaproveitando a
+definition existente e sobrescrevendo apenas as variáveis de ambiente:
+
+```bash
+aws ecs run-task \
+  --cluster producao --task-definition balance-api:42 --launch-type FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=[subnet-a],securityGroups=[sg-xxx]}" \
+  --overrides '{"containerOverrides":[{"name":"app","environment":[
+      {"name":"REPLAY_MODE","value":"true"},
+      {"name":"KAFKA_CONSUMER_GROUP_ID","value":"balance-replay-2026-09-02"}]}]}'
+```
+
+Task avulsa, e não um service, por três razões: ela **não é registrada no load balancer**, então não
+recebe tráfego HTTP; não conflita com as políticas de autoscaling; e termina sozinha, sem precisar
+ser deletada depois. Herda a mesma task role, então já tem as permissões de DynamoDB e do broker.
+Ao concluir, `aws ecs stop-task`.
+
+### Distinguindo replay de produção nos logs
+
+Durante um reprocessamento há duas instâncias consumindo o mesmo tópico, e sem marcação as linhas
+das duas se misturam no agregador — milhares de "evento duplicado descartado" sem indicação de
+quem os produziu. Toda linha de ingestão carrega a origem:
+
+```
+produção:  consumerGroup=balance-transaction-consumer   replay=false
+replay:    consumerGroup=balance-replay-20260902-1156    replay=true
+```
+
+`consumerGroup` é o fato e `replay` é a interpretação — este último existe para a consulta não
+depender da convenção de nome do grupo. No dead letter topic o grupo entra na própria mensagem,
+porque quando o error handler roda o contexto da mensagem já foi limpo.
+
+### A proteção que o modo replay adiciona
+
+`REPLAY_MODE=true` não muda o que a aplicação faz — ela consome e projeta igual. O que ele ativa é
+uma checagem na inicialização: se o `group.id` for o de produção, a aplicação **recusa subir**.
+
+Sem isso, esquecer de trocar o `group.id` faria a instância de replay entrar no grupo que está
+servindo, disparar um rebalanceamento e disputar as partições com ele — um incidente nascido de uma
+operação rotineira. E seria silencioso: nada falha, o consumo continua, e só o lag e a latência
+denunciariam. Falhar na inicialização é barato; descobrir depois, no meio do reprocessamento, não é.
+
+### Três cuidados em produção
+
+**Capacidade do DynamoDB.** O replay gera uma rajada de escrita. Em *on-demand* escala sozinho; em
+*provisioned* o throttling é provável — e aí o retry longo segura o replay sem perder nada, mas
+vale subir a capacidade antes ou escolher uma janela de baixo movimento.
+
+**Retenção do tópico.** Só se reprocessa o que ainda está no broker. Se a retenção é de sete dias,
+"reprocessar tudo" significa os últimos sete dias.
+
+**Transferência de dados.** Reler o tópico inteiro gera tráfego de rede, cobrado quando as tasks
+ficam em zona diferente dos brokers.
+
+### Reprocessar o dead letter topic
+
+O DLT não é consumido por ninguém — as mensagens ficam retidas para inspeção. Reprocessar significa
+**republicar** no tópico principal:
+
+```bash
+docker compose exec redpanda bash -c \
+  "rpk topic consume transacoes-financeiras-processadas.DLT --brokers redpanda:9092 \
+     --offset start --format '%v\n' \
+   | rpk topic produce transacoes-financeiras-processadas --brokers redpanda:9092 -f '%v\n'"
+```
+
+Duas precauções: republicar **antes de corrigir a causa** devolve os eventos direto ao DLT; e o DLT
+também é *at-least-once*, então o mesmo evento pode estar lá mais de uma vez — para o saldo é
+indiferente, já que a cópia extra é descartada como duplicata.
 
 ## Testes
 
