@@ -16,7 +16,7 @@ curl http://localhost:8080/balances/{accountId}                       # consulta
 
 - [Arquitetura](#arquitetura) · [Decisões](#decisões-de-design) · [Fora de escopo](#o-que-não-foi-implementado)
 - [Como rodar](#como-rodar) · [Cenários difíceis](#como-verificar-os-cenários-difíceis) · [Contrato](#contrato-da-api)
-- [Configuração](#configuração) · [Testes](#testes) · [Uso de IA](#sobre-o-uso-de-ia)
+- [Configuração](#configuração) · [Reprocessamento](#runbook-reprocessar-o-tópico) · [Testes](#testes) · [Uso de IA](#sobre-o-uso-de-ia)
 
 ## Arquitetura
 
@@ -373,6 +373,107 @@ regra escondida.
 microssegundo. Descartar significaria ignorar a leitura mais recente do sistema. Com `false`, só
 APPROVED atualiza — leitura mais conservadora, correta se o autorizador emitir saldo
 pré-autorização nas recusas. A corretude se mantém nos dois modos; muda o frescor.
+
+## Runbook: reprocessar o tópico
+
+O saldo é uma projeção determinística do tópico, então reconstruí-lo é uma operação de rotina, não
+um procedimento de emergência. Provado em teste: reprocessar tudo do offset zero produziu um estado
+**byte a byte idêntico** — mesmo hash das 518 contas antes e depois.
+
+Num serviço que acumulasse saldo em vez de projetar, o mesmo comando duplicaria todos os valores.
+
+### Opção 1 — rebobinar o grupo (exige janela)
+
+O Kafka recusa mover o offset de um grupo com membros ativos: o offset é estado compartilhado, e
+alterá-lo sob um consumidor que está lendo daria comportamento indefinido. Tentar sem parar
+devolve `INVALID_OPERATION: seeking a non-empty group is not allowed`. Por isso a aplicação para
+primeiro.
+
+```bash
+docker compose stop app
+
+docker compose exec redpanda rpk group seek balance-transaction-consumer \
+  --to start --brokers redpanda:9092
+
+docker compose start app
+```
+
+Em Kafka padrão, o equivalente — **sempre com `--dry-run` antes de `--execute`**:
+
+```bash
+kafka-consumer-groups.sh --bootstrap-server $BROKER \
+  --group balance-transaction-consumer \
+  --topic transacoes-financeiras-processadas \
+  --reset-offsets --to-earliest --dry-run
+```
+
+| Alvo | `rpk` | `kafka-consumer-groups.sh` |
+|-|-|-|
+| início do log | `--to start` | `--to-earliest` |
+| só o que chegar | `--to end` | `--to-latest` |
+| a partir de um instante | `--to timestamp:<epoch-ms>` | `--to-datetime <ISO>` |
+| deslocamento relativo | `--to -1000` | `--shift-by -1000` |
+
+### Opção 2 — replay paralelo (sem parar nada)
+
+Preferível em produção. Uma segunda instância com outro `group.id` lê o tópico do início enquanto a
+primeira segue atendendo normalmente:
+
+```bash
+docker run -d --rm --name replay \
+  --network itau-desafio-consulta-saldo_default \
+  -e DYNAMODB_ENDPOINT=http://dynamodb:8000 \
+  -e KAFKA_BOOTSTRAP_SERVERS=redpanda:9092 \
+  -e BALANCE_TABLE_NAME=AccountBalances \
+  -e TRANSACTIONS_TOPIC=transacoes-financeiras-processadas \
+  -e KAFKA_CONSUMER_GROUP_ID=balance-replay-$(date +%F) \
+  itau-desafio-consulta-saldo-app
+
+# ...acompanhe até o lag zerar, e então:
+docker stop replay
+```
+
+Verificado: os dois grupos coexistem (`balance-replay-…` e `balance-transaction-consumer`, ambos
+`Stable`) e a instância de produção responde normalmente durante todo o replay.
+
+Grupos diferentes têm offsets independentes, então a instância de replay não interfere na de
+produção. As duas escrevem na mesma tabela — inofensivo aqui, porque a escrita condicional descarta
+o que já foi aplicado. Terminado o replay, a instância extra é derrubada.
+
+Note que **trocar o `group.id` da instância existente exigiria reiniciá-la**, já que a configuração
+é lida na inicialização do consumidor. Por isso a estratégia é acrescentar uma instância, não
+reconfigurar a que está no ar.
+
+### O que esperar durante um replay
+
+As métricas mostram o reprocessamento acontecendo sem efeito colateral:
+
+Medido num replay de 50 eventos já processados:
+
+```
+balance_transactions_processed_total{outcome="applied"}              0.0
+balance_transactions_processed_total{outcome="duplicate_discarded"}  50.0
+```
+
+Tudo reprocessado, nada alterado. Eventos já aplicados são rejeitados pela comparação de versão —
+só um evento genuinamente mais recente que o saldo armazenado muda alguma coisa.
+
+### Reprocessar o dead letter topic
+
+O DLT não é consumido por ninguém: as mensagens ficam retidas para inspeção. Reprocessar significa
+**republicar** no tópico principal.
+
+```bash
+docker compose exec redpanda bash -c \
+  "rpk topic consume transacoes-financeiras-processadas.DLT --brokers redpanda:9092 \
+     --offset start --format '%v\n' \
+   | rpk topic produce transacoes-financeiras-processadas --brokers redpanda:9092 -f '%v\n'"
+```
+
+Duas precauções. Republicar **antes de corrigir a causa** devolve os eventos direto ao DLT. E o DLT
+também é *at-least-once*, então o mesmo evento pode estar lá mais de uma vez — deduplique por
+`transaction.id` ao analisar. Para o saldo isso é indiferente, já que a segunda cópia é descartada
+como duplicata.
 
 ## Testes
 
