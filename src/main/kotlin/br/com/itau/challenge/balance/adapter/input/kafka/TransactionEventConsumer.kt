@@ -7,6 +7,7 @@ import br.com.itau.challenge.balance.domain.model.ProcessingOutcome
 import br.com.itau.challenge.balance.port.input.ProcessTransactionUseCase
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.kafka.annotation.KafkaListener
 import org.springframework.stereotype.Component
 import tools.jackson.core.JacksonException
@@ -19,6 +20,8 @@ class TransactionEventConsumer(
     private val processTransactionUseCase: ProcessTransactionUseCase,
     private val objectMapper: ObjectMapper,
     private val metrics: TransactionProcessingMetrics,
+    @Value("\${spring.kafka.consumer.group-id}") private val consumerGroup: String,
+    @Value("\${balance.replay.enabled}") private val replayMode: Boolean,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
 
@@ -32,6 +35,14 @@ class TransactionEventConsumer(
         // Os identificadores vão para o MDC, e não interpolados na mensagem, para virarem campos
         // pesquisáveis: `account:ad94db9f-…` é uma consulta. `owner` entra junto porque
         // investigações raramente começam pela conta — quem abre um chamado é o titular.
+        // Durante um reprocessamento existem duas instâncias consumindo o mesmo tópico ao mesmo
+        // tempo, e sem estes campos as linhas das duas se misturam no agregador — milhares de
+        // "evento duplicado descartado" sem indicação de quem os produziu. `consumerGroup` é o
+        // fato; `replay` é a interpretação, e existe para a consulta não depender da convenção de
+        // nome do grupo.
+        MDC.put("consumerGroup", consumerGroup)
+        MDC.put("replay", replayMode.toString())
+
         putBestEffortContext(payload)
 
         try {
@@ -45,7 +56,7 @@ class TransactionEventConsumer(
         } finally {
             // Threads do container são reaproveitadas entre mensagens: sem limpar, o contexto de
             // uma vazaria para a próxima e o log atribuiria o evento à conta errada.
-            CONTEXT_KEYS.forEach(MDC::remove)
+            (CONTEXT_KEYS + listOf("consumerGroup", "replay")).forEach(MDC::remove)
         }
     }
 

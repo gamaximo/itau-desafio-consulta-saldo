@@ -37,9 +37,14 @@ private val deadLetterLogger = LoggerFactory.getLogger("br.com.itau.challenge.ba
 internal fun deadLetterDestinationFor(
     record: ConsumerRecord<*, *>,
     exception: Exception,
+    consumerGroup: String = "",
 ): TopicPartition {
+    // O grupo entra na própria mensagem, e não no MDC: quando o error handler roda, o consumidor
+    // já limpou o contexto da mensagem. Sem ele, um dead letter durante um reprocessamento seria
+    // indistinguível de um da produção.
     deadLetterLogger.error(
-        "Evento inprocessável enviado ao dead letter topic: tópico={} partição={} offset={} motivo={}",
+        "Evento inprocessável enviado ao dead letter topic: grupo={} tópico={} partição={} offset={} motivo={}",
+        consumerGroup,
         record.topic(),
         record.partition(),
         record.offset(),
@@ -171,8 +176,14 @@ class KafkaConsumerConfig {
      * previsão de melhora, que é justamente o que o caso da indisponibilidade tem e este não.
      */
     @Bean
-    fun kafkaErrorHandler(kafkaTemplate: KafkaTemplate<*, *>): DefaultErrorHandler {
-        val recoverer = DeadLetterPublishingRecoverer(kafkaTemplate, ::deadLetterDestinationFor)
+    fun kafkaErrorHandler(
+        kafkaTemplate: KafkaTemplate<*, *>,
+        @Value("\${spring.kafka.consumer.group-id}") consumerGroup: String,
+    ): DefaultErrorHandler {
+        val recoverer =
+            DeadLetterPublishingRecoverer(kafkaTemplate) { record, exception ->
+                deadLetterDestinationFor(record, exception, consumerGroup)
+            }
 
         return DefaultErrorHandler(recoverer, defaultBackOff()).apply {
             addNotRetryableExceptions(InvalidTransactionEventException::class.java)

@@ -104,7 +104,7 @@ kafka-produce-scenario: ## Produce a fixed out-of-order + duplicate + invalid sc
 		/redpanda-seed/produce-scenario.sh $(TOPIC) $(ACCOUNT)
 
 .PHONY: replay
-replay: ## Reprocessa o tópico numa instância adicional, sem parar a aplicação (usage: make replay [TOPIC=my-topic])
+replay: ## Reprocessa o tópico numa instância adicional, sem parar a aplicação
 	./infra/replay.sh
 
 .PHONY: kafka-consume

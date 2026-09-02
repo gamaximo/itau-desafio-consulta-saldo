@@ -426,6 +426,21 @@ recebe tráfego HTTP; não conflita com as políticas de autoscaling; e termina 
 ser deletada depois. Herda a mesma task role, então já tem as permissões de DynamoDB e do broker.
 Ao concluir, `aws ecs stop-task`.
 
+### Distinguindo replay de produção nos logs
+
+Durante um reprocessamento há duas instâncias consumindo o mesmo tópico, e sem marcação as linhas
+das duas se misturam no agregador — milhares de "evento duplicado descartado" sem indicação de
+quem os produziu. Toda linha de ingestão carrega a origem:
+
+```
+produção:  consumerGroup=balance-transaction-consumer   replay=false
+replay:    consumerGroup=balance-replay-20260902-1156    replay=true
+```
+
+`consumerGroup` é o fato e `replay` é a interpretação — este último existe para a consulta não
+depender da convenção de nome do grupo. No dead letter topic o grupo entra na própria mensagem,
+porque quando o error handler roda o contexto da mensagem já foi limpo.
+
 ### A proteção que o modo replay adiciona
 
 `REPLAY_MODE=true` não muda o que a aplicação faz — ela consome e projeta igual. O que ele ativa é

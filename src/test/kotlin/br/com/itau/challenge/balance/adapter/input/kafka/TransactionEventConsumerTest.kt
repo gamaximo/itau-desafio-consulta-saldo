@@ -49,6 +49,8 @@ class TransactionEventConsumerTest {
                 },
             objectMapper = jacksonObjectMapper(),
             metrics = metrics,
+            consumerGroup = "balance-transaction-consumer",
+            replayMode = false,
         )
 
     private fun rejectedCount() = registry.get("balance.transactions.rejected").counter().count()
