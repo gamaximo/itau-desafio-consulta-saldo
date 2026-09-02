@@ -7,6 +7,7 @@ import br.com.itau.challenge.balance.fixture.ACCOUNT_ID
 import br.com.itau.challenge.balance.port.input.ProcessTransactionUseCase
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import org.junit.jupiter.api.Test
+import org.slf4j.MDC
 import tools.jackson.module.kotlin.jacksonObjectMapper
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -33,6 +34,8 @@ private const val VALID_PAYLOAD = """
 }
 """
 
+private const val GRUPO_PRODUCAO = "balance-transaction-consumer"
+
 class TransactionEventConsumerTest {
 
     private val registry = SimpleMeterRegistry()
@@ -49,8 +52,8 @@ class TransactionEventConsumerTest {
                 },
             objectMapper = jacksonObjectMapper(),
             metrics = metrics,
-            consumerGroup = "balance-transaction-consumer",
-            replayMode = false,
+            consumerGroup = GRUPO_PRODUCAO,
+            productionGroupId = GRUPO_PRODUCAO,
         )
 
     private fun rejectedCount() = registry.get("balance.transactions.rejected").counter().count()
@@ -113,5 +116,43 @@ class TransactionEventConsumerTest {
         val unknownEnum = VALID_PAYLOAD.replace("\"CREDIT\"", "\"TRANSFER\"")
 
         assertFailsWith<InvalidTransactionEventException> { consumer.consume(unknownEnum) }
+    }
+
+    /**
+     * A origem da linha de log é derivada, não declarada: sai da comparação entre o group-id desta
+     * instância e o de produção.
+     *
+     * Existia um toggle para isso, e ele tinha um modo de falha próprio — esquecer de ligá-lo fazia
+     * um reprocessamento se apresentar no log como se fosse produção, exatamente quando há duas
+     * instâncias consumindo e a distinção importa. Derivando, não há o que esquecer.
+     *
+     * A marcação é lida dentro do caso de uso porque o contexto é limpo ao fim do consumo.
+     */
+    @Test
+    fun `marca como replay quando o group-id não é o de produção`() {
+        assertEquals("true", origemMarcadaDurante(consumerGroup = "balance-replay-20260902-115630"))
+    }
+
+    @Test
+    fun `marca como produção quando o group-id é o de produção`() {
+        assertEquals("false", origemMarcadaDurante(consumerGroup = GRUPO_PRODUCAO))
+    }
+
+    private fun origemMarcadaDurante(consumerGroup: String): String? {
+        var marcada: String? = null
+
+        TransactionEventConsumer(
+            processTransactionUseCase =
+                ProcessTransactionUseCase {
+                    marcada = MDC.get("replay")
+                    ProcessingOutcome.APPLIED
+                },
+            objectMapper = jacksonObjectMapper(),
+            metrics = metrics,
+            consumerGroup = consumerGroup,
+            productionGroupId = GRUPO_PRODUCAO,
+        ).consume(VALID_PAYLOAD)
+
+        return marcada
     }
 }
