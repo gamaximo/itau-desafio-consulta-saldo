@@ -430,110 +430,57 @@ group-id com `PRODUCTION_GROUP_ID` e conclui sozinha que está reprocessando.
 ### Distinguindo replay de produção nos logs
 
 Durante um reprocessamento há duas instâncias consumindo o mesmo tópico, e sem marcação as linhas
-das duas se misturam no agregador — milhares de "evento duplicado descartado" sem indicação de
-quem os produziu. Toda linha de ingestão carrega a origem:
+das duas se misturam no agregador — milhares de "evento duplicado descartado" sem indicação de quem
+os produziu. Toda linha de ingestão carrega a origem:
 
 ```
 produção:  consumerGroup=balance-transaction-consumer   replay=false
 replay:    consumerGroup=balance-replay-20260902-1156    replay=true
 ```
 
-`consumerGroup` é o fato e `replay` é a interpretação, derivada da comparação com
-`PRODUCTION_GROUP_ID`. O campo interpretado existe para a consulta não depender da convenção de
-nome do grupo: filtrar por `replay:false` continua valendo se amanhã o prefixo dos grupos de
-replay mudar. No dead letter topic o grupo entra na própria mensagem,
-porque quando o error handler roda o contexto da mensagem já foi limpo.
+`consumerGroup` é o fato; `replay` é derivado da comparação com `PRODUCTION_GROUP_ID`, e existe
+para a consulta não depender da convenção de nome do grupo — filtrar por `replay:false` sobrevive a
+uma mudança de prefixo. No dead letter topic o grupo entra na própria mensagem, porque quando o
+error handler roda o contexto já foi limpo.
 
-### Por que não existe um `REPLAY_MODE`
-
-Houve um toggle aqui. Ligado, ele marcava os logs como replay e recusava a inicialização se o
-`group.id` fosse o de produção — protegendo contra o erro de subir a instância de reprocessamento
-dentro do grupo que está servindo, o que dispararia um rebalanceamento e faria as duas disputarem
-as partições, em silêncio.
-
-Foi removido porque a proteção só valia para quem já tinha lembrado da metade difícil. Ela dependia
-do toggle estar ligado; quem esquecia dele não era protegido de nada. E quem o ligava estava usando
-`make replay`, que já gera um `group.id` único uma linha antes — no caminho em que a trava existia,
-o erro já tinha sido evitado. Restava a combinação de quem lê metade do runbook.
-
-Hoje o modo é derivado: `group.id` diferente de `PRODUCTION_GROUP_ID` **é** um reprocessamento.
-Some a variável a mais para lembrar, e some o modo de falha em que um replay se apresenta no log
-como produção porque o toggle ficou para trás — justamente quando há duas instâncias consumindo e
-a distinção importa.
-
-**O que se perde, dito claramente:** não há mais trava de inicialização. Subir uma instância de
-reprocessamento com o `group.id` de produção deixa de ser detectável, porque essa instância passa a
-ser indistinguível de uma instância de produção comum — era a declaração de intenção que permitia
-flagrar a contradição. O que resta contra esse erro é operacional: o script sempre gera um grupo
-único, e a instância avisa no arranque, em nível `WARN`, quando está consumindo com group-id
-diferente do de produção. Um serviço com mais frotas legítimas provavelmente quer a intenção
-declarada de volta.
+**Não há um `REPLAY_MODE` para ligar.** Derivar em vez de declarar elimina a variável a mais e o
+modo de falha em que um replay se apresenta como produção porque alguém esqueceu o toggle. Em troca,
+subir o replay com o `group.id` **de produção** deixa de ser detectável — essa instância fica
+indistinguível de uma de produção, entra no grupo que está servindo e disputa as partições, sem
+nada falhar. Restam o script, que sempre gera um grupo único, e um `WARN` no arranque quando o
+group-id difere do de produção. Um serviço com mais frotas legítimas quereria a intenção declarada
+de volta.
 
 ### Reprocessar só a partir de um horário
 
-Reler o tópico inteiro é o caminho padrão, mas raramente é o necessário: quando se sabe a que horas
-o problema começou, reprocessar as últimas horas basta e custa uma fração.
-
-O posicionamento é feito **no grupo, antes de subir a instância** — não pela aplicação. O grupo de
-replay é novo e não tem membros, então mover seus offsets é seguro; o broker resolve o horário para
-o offset correto em cada partição.
-
-Localmente:
+Reler o tópico inteiro raramente é o necessário: sabendo a que horas o problema começou,
+reprocessar as últimas horas custa uma fração. O posicionamento é feito **no grupo, antes de subir
+a instância** — o grupo de replay é novo e não tem membros, então mover seus offsets é seguro, e o
+broker resolve o horário para o offset correto de cada partição:
 
 ```bash
-docker compose exec redpanda rpk group seek balance-replay-2026-09-02 \
-  --to 1788380415676 --topics transacoes-financeiras-processadas --allow-new-topics
-```
+# local
+rpk group seek balance-replay-2026-09-02 --to 1788380415676 \
+  --topics transacoes-financeiras-processadas --allow-new-topics
 
-O resultado mostra que a resolução é real, e não um corte uniforme — cada partição recebe o offset
-que corresponde àquele instante nela:
-
-```
-TOPIC                               PARTITION  PRIOR-OFFSET  CURRENT-OFFSET
-transacoes-financeiras-processadas  0          -1            0     # vazia
-transacoes-financeiras-processadas  1          -1            0     # tudo posterior ao corte
-transacoes-financeiras-processadas  2          -1            6     # tudo anterior, pulada
-```
-
-Feito isso, sobe-se a instância com esse mesmo `group.id`. Como o grupo já tem offsets commitados,
-`auto-offset-reset` não se aplica e o consumo começa no corte.
-
-**Na AWS (MSK).** O comando equivalente é o `kafka-consumer-groups.sh`, executado antes do
-`run-task` do replay:
-
-```bash
+# AWS/MSK
 kafka-consumer-groups.sh --bootstrap-server "$BROKERS" \
   --group balance-replay-2026-09-02 --topic transacoes-financeiras-processadas \
   --reset-offsets --to-datetime 2026-09-02T14:30:00.000 --execute
 ```
 
-Ele precisa de rota de rede até o broker, que fica em subnet privada — e a imagem da aplicação não
-traz as ferramentas do Kafka. O caminho mais direto é pedir ao próprio ECS um contêiner
-descartável com elas, na mesma rede das tasks:
+Cada partição recebe o offset daquele instante nela — as já consumidas são puladas, as que só têm
+mensagens posteriores começam do zero. Feito isso, sobe-se a instância com esse mesmo `group.id`:
+como o grupo já tem offsets commitados, `auto-offset-reset` não se aplica e o consumo começa no
+corte.
 
-```bash
-aws ecs run-task --cluster producao --launch-type FARGATE \
-  --task-definition kafka-tools:1 \
-  --network-configuration "awsvpcConfiguration={subnets=[subnet-a],securityGroups=[sg-xxx]}" \
-  --overrides '{"containerOverrides":[{"name":"kafka-tools","command":[
-      "kafka-consumer-groups.sh","--bootstrap-server","BROKERS",
-      "--group","balance-replay-2026-09-02","--topic","transacoes-financeiras-processadas",
-      "--reset-offsets","--to-datetime","2026-09-02T14:30:00.000","--execute"]}]}'
-```
+Na AWS o comando precisa de rota até o broker, que fica em subnet privada, e a imagem da aplicação
+não traz as ferramentas do Kafka — serve uma task avulsa com uma imagem que as tenha, um bastion
+por SSM ou o CloudShell num *VPC environment*. **Não** é preciso acessar a task da aplicação: ela
+não participa deste passo.
 
-Serve igualmente um bastion na VPC por SSM Session Manager, ou o CloudShell num *VPC environment* —
-o requisito é só alcançar o broker pela rede. **Não** é preciso "entrar" numa task da aplicação: o
-ECS não é uma máquina onde se entra, e a task do replay não participa deste passo.
-
-**Dois cuidados.**
-
-O horário é o da **mensagem no tópico** — quando o evento foi publicado —, não o
-`transaction.timestamp` do payload. Para "reprocessar a partir de quando o problema começou" é
-normalmente o que se quer, mas os dois divergem se o produtor atrasou a publicação.
-
-E isto vale apenas para um grupo **novo**. O Kafka recusa mover offsets de um grupo com membros
-ativos, então não há como aplicar ao grupo de produção sem parar a aplicação — que é exatamente o
-que o desenho de instância adicional evita.
+Dois limites: o horário é o da **mensagem no tópico**, não o `transaction.timestamp` do payload; e
+isto só vale para grupo novo, porque o Kafka recusa mover offsets de um grupo com membros ativos.
 
 ### Três cuidados em produção
 
@@ -571,7 +518,7 @@ make test               # unitários + gate de cobertura ≥ 90%, em container
 make integration-test   # integração contra DynamoDB e Redpanda reais
 ```
 
-**Cobertura: 97%** de instruções. **13 testes de integração**, porque provam o que mock nenhum
+**Cobertura: 96,7%** de instruções. **13 testes de integração**, porque provam o que mock nenhum
 prova — se a condição rejeita mesmo uma versão igual é pergunta sobre o DynamoDB, não sobre este
 código:
 
@@ -658,8 +605,8 @@ grafias possíveis da mesma chave. Agora o domínio guarda sempre a forma canôn
 lugar nenhum. É a fraqueza estrutural do *last-write-wins*: ele confia no relógio de quem produz.
 Virou a [decisão 5](#5-frescor-rejeitar-eventos-do-futuro).
 
-Os três foram encontrados executando, não lendo código — e é por isso que a suíte tem 13 testes de
-integração contra infraestrutura real.
+Nenhum deles foi encontrado lendo o código: apareceram rodando a stack ou nos testes de integração
+contra infraestrutura real — que é por que a suíte tem 13 deles.
 
 ### O que a IA fez
 
