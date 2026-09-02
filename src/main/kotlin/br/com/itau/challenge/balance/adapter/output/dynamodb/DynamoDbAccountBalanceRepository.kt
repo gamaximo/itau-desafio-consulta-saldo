@@ -3,7 +3,6 @@ package br.com.itau.challenge.balance.adapter.output.dynamodb
 import br.com.itau.challenge.balance.domain.model.AccountBalance
 import br.com.itau.challenge.balance.domain.model.RejectionReason
 import br.com.itau.challenge.balance.port.output.AccountBalanceRepository
-import br.com.itau.challenge.balance.port.output.AccountBalanceStorageException
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Component
 import software.amazon.awssdk.core.exception.SdkException
@@ -104,10 +103,7 @@ class DynamoDbAccountBalanceRepository(
             // infraestrutura retentável.
             rejectionReasonFrom(exception, accountBalance.version)
         } catch (exception: SdkException) {
-            throw AccountBalanceStorageException(
-                "Falha ao gravar o saldo da conta '${accountBalance.accountId}'",
-                exception,
-            )
+            throw exception.toStorageFailure("Falha ao gravar o saldo da conta '${accountBalance.accountId}'")
         }
     }
 }
