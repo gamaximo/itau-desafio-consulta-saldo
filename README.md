@@ -363,7 +363,7 @@ todos em `application/problem+json`.
 | `MAX_CLOCK_SKEW` | `5m` | tolerância para eventos adiantados |
 | `API_TIME_ZONE` | `America/Sao_Paulo` | fuso de `updated_at` |
 | `LOG_FORMAT` | *(vazio)* | `ecs` para JSON estruturado |
-| `REPLAY_MODE` | `false` | modo de reprocessamento — ver [runbook](#runbook-reprocessar-o-tópico) |
+| `PRODUCTION_GROUP_ID` | `balance-transaction-consumer` | group-id que identifica produção — ver [runbook](#runbook-reprocessar-o-tópico) |
 
 ### Sobre `apply-declined-transactions`
 
@@ -392,8 +392,7 @@ que já foi aplicado. Nenhuma janela de indisponibilidade é necessária.
 make replay
 ```
 
-`infra/replay.sh` gera um `group.id` único, sobe a instância com `REPLAY_MODE=true`, acompanha o
-lag até zerar e a derruba. O actuator dela fica em `localhost:8090`, separado da produção. Saída de
+`infra/replay.sh` gera um `group.id` único, sobe a instância, acompanha o lag até zerar e a derruba. O actuator dela fica em `localhost:8090`, separado da produção. Saída de
 uma execução real:
 
 ```
@@ -417,7 +416,6 @@ aws ecs run-task \
   --cluster producao --task-definition balance-api:42 --launch-type FARGATE \
   --network-configuration "awsvpcConfiguration={subnets=[subnet-a],securityGroups=[sg-xxx]}" \
   --overrides '{"containerOverrides":[{"name":"app","environment":[
-      {"name":"REPLAY_MODE","value":"true"},
       {"name":"KAFKA_CONSUMER_GROUP_ID","value":"balance-replay-2026-09-02"}]}]}'
 ```
 
@@ -425,6 +423,9 @@ Task avulsa, e não um service, por três razões: ela **não é registrada no l
 recebe tráfego HTTP; não conflita com as políticas de autoscaling; e termina sozinha, sem precisar
 ser deletada depois. Herda a mesma task role, então já tem as permissões de DynamoDB e do broker.
 Ao concluir, `aws ecs stop-task`.
+
+A única variável a sobrescrever é o `group.id`. Não há modo a declarar: a aplicação compara o
+group-id com `PRODUCTION_GROUP_ID` e conclui sozinha que está reprocessando.
 
 ### Distinguindo replay de produção nos logs
 
@@ -437,19 +438,36 @@ produção:  consumerGroup=balance-transaction-consumer   replay=false
 replay:    consumerGroup=balance-replay-20260902-1156    replay=true
 ```
 
-`consumerGroup` é o fato e `replay` é a interpretação — este último existe para a consulta não
-depender da convenção de nome do grupo. No dead letter topic o grupo entra na própria mensagem,
+`consumerGroup` é o fato e `replay` é a interpretação, derivada da comparação com
+`PRODUCTION_GROUP_ID`. O campo interpretado existe para a consulta não depender da convenção de
+nome do grupo: filtrar por `replay:false` continua valendo se amanhã o prefixo dos grupos de
+replay mudar. No dead letter topic o grupo entra na própria mensagem,
 porque quando o error handler roda o contexto da mensagem já foi limpo.
 
-### A proteção que o modo replay adiciona
+### Por que não existe um `REPLAY_MODE`
 
-`REPLAY_MODE=true` não muda o que a aplicação faz — ela consome e projeta igual. O que ele ativa é
-uma checagem na inicialização: se o `group.id` for o de produção, a aplicação **recusa subir**.
+Houve um toggle aqui. Ligado, ele marcava os logs como replay e recusava a inicialização se o
+`group.id` fosse o de produção — protegendo contra o erro de subir a instância de reprocessamento
+dentro do grupo que está servindo, o que dispararia um rebalanceamento e faria as duas disputarem
+as partições, em silêncio.
 
-Sem isso, esquecer de trocar o `group.id` faria a instância de replay entrar no grupo que está
-servindo, disparar um rebalanceamento e disputar as partições com ele — um incidente nascido de uma
-operação rotineira. E seria silencioso: nada falha, o consumo continua, e só o lag e a latência
-denunciariam. Falhar na inicialização é barato; descobrir depois, no meio do reprocessamento, não é.
+Foi removido porque a proteção só valia para quem já tinha lembrado da metade difícil. Ela dependia
+do toggle estar ligado; quem esquecia dele não era protegido de nada. E quem o ligava estava usando
+`make replay`, que já gera um `group.id` único uma linha antes — no caminho em que a trava existia,
+o erro já tinha sido evitado. Restava a combinação de quem lê metade do runbook.
+
+Hoje o modo é derivado: `group.id` diferente de `PRODUCTION_GROUP_ID` **é** um reprocessamento.
+Some a variável a mais para lembrar, e some o modo de falha em que um replay se apresenta no log
+como produção porque o toggle ficou para trás — justamente quando há duas instâncias consumindo e
+a distinção importa.
+
+**O que se perde, dito claramente:** não há mais trava de inicialização. Subir uma instância de
+reprocessamento com o `group.id` de produção deixa de ser detectável, porque essa instância passa a
+ser indistinguível de uma instância de produção comum — era a declaração de intenção que permitia
+flagrar a contradição. O que resta contra esse erro é operacional: o script sempre gera um grupo
+único, e a instância avisa no arranque, em nível `WARN`, quando está consumindo com group-id
+diferente do de produção. Um serviço com mais frotas legítimas provavelmente quer a intenção
+declarada de volta.
 
 ### Três cuidados em produção
 

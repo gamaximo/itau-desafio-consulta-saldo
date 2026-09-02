@@ -4,6 +4,11 @@ set -euo pipefail
 # Reprocessa o tópico de transações subindo uma instância **adicional** da aplicação, com um
 # group-id exclusivo, enquanto a instância de produção segue atendendo normalmente.
 #
+# O group-id exclusivo é a única coisa que precisa ser definida: a aplicação deriva dele que está
+# reprocessando, e marca os logs de acordo. O formato estruturado vai junto porque é o que faz a
+# marcação aparecer — no formato de texto os campos do MDC não são impressos, e as linhas das duas
+# instâncias ficariam indistinguíveis, que é justamente o que a marcação existe para evitar.
+#
 # Grupos de consumo têm offsets independentes: a instância de replay lê o tópico desde o início
 # sem interferir no progresso de quem está servindo. As duas gravam na mesma tabela, o que é
 # inofensivo porque a escrita condicional descarta o que já foi aplicado — reprocessar produz um
@@ -46,7 +51,7 @@ docker run -d --rm --name "$CONTAINER" --network "$REDE" \
   -e BALANCE_TABLE_NAME="${BALANCE_TABLE_NAME:-AccountBalances}" \
   -e TRANSACTIONS_TOPIC="$TOPIC" \
   -e KAFKA_CONSUMER_GROUP_ID="$GROUP" \
-  -e REPLAY_MODE=true \
+  -e LOG_FORMAT="${LOG_FORMAT:-ecs}" \
   "$IMAGEM" >/dev/null
 
 log "instância de replay iniciada (actuator em localhost:${PORTA})"

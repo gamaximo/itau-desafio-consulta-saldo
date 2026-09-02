@@ -21,9 +21,31 @@ class TransactionEventConsumer(
     private val objectMapper: ObjectMapper,
     private val metrics: TransactionProcessingMetrics,
     @Value("\${spring.kafka.consumer.group-id}") private val consumerGroup: String,
-    @Value("\${balance.replay.enabled}") private val replayMode: Boolean,
+    @Value("\${balance.replay.production-group-id}") private val productionGroupId: String,
 ) {
     private val logger = LoggerFactory.getLogger(javaClass)
+
+    // Reprocessar é subir uma instância a mais com outro `group.id`, então o próprio group-id já
+    // diz o que esta instância é — não há o que declarar. Derivar em vez de exigir um toggle
+    // elimina a única forma de a marcação sair errada: alguém esquecer de ligá-lo e o replay se
+    // apresentar no log como produção.
+    //
+    // O preço é assumir que todo group-id diferente do de produção é replay. Se um dia houver
+    // outro consumidor legítimo com grupo próprio — duas frotas num blue/green, por exemplo — ele
+    // se identificaria como replay, e aí a intenção volta a precisar ser declarada.
+    private val replayMode = consumerGroup != productionGroupId
+
+    init {
+        if (replayMode) {
+            logger.warn(
+                "Consumindo com o group-id '{}', diferente do de produção '{}' — esta instância é " +
+                    "tratada como reprocessamento nos logs e não afeta o grupo que está servindo. " +
+                    "Eventos já aplicados serão descartados como duplicata.",
+                consumerGroup,
+                productionGroupId,
+            )
+        }
+    }
 
     @KafkaListener(topics = ["\${transactions.topic-name}"])
     fun consume(payload: String) {
@@ -39,7 +61,8 @@ class TransactionEventConsumer(
         // tempo, e sem estes campos as linhas das duas se misturam no agregador — milhares de
         // "evento duplicado descartado" sem indicação de quem os produziu. `consumerGroup` é o
         // fato; `replay` é a interpretação, e existe para a consulta não depender da convenção de
-        // nome do grupo.
+        // nome do grupo — filtrar por `replay:false` é estável, `consumerGroup:balance-replay-*`
+        // depende de ninguém mudar o prefixo.
         MDC.put("consumerGroup", consumerGroup)
         MDC.put("replay", replayMode.toString())
 
