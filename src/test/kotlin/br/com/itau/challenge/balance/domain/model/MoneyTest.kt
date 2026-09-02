@@ -86,4 +86,24 @@ class MoneyTest {
     fun `tem um toString legível para os logs`() {
         assertTrue(money(amount = "10.00").toString().contains("10.00"))
     }
+
+    /**
+     * Um valor com mais dígitos do que o DynamoDB aceita atravessaria domínio e caso de uso e só
+     * falharia na escrita — como `SdkException`, que o adaptador classifica como transitória. O
+     * evento seria retentado quatro vezes por um erro que nunca melhora. Rejeitar aqui torna a
+     * recusa imediata e a mensagem clara.
+     */
+    @Test
+    fun `rejeita um valor com mais digitos do que o armazenamento suporta`() {
+        val excessivo = BigDecimal("9".repeat(39))
+
+        val excecao = assertFailsWith<InvalidTransactionEventException> { Money(excessivo, "BRL") }
+
+        assertTrue(excecao.message!!.contains("dígitos significativos"))
+    }
+
+    @Test
+    fun `aceita um valor no limite do armazenamento`() {
+        assertEquals(38, Money(BigDecimal("9".repeat(36) + ".99"), "BRL").amount.precision())
+    }
 }

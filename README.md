@@ -417,6 +417,12 @@ decisões estruturais — sempre pedindo alternativas e trade-offs antes de esco
 **Habilitar `problemdetails` sobrepôs handlers próprios.** Dois testes quebraram ao ligar a
 propriedade, revelando uma disputa de precedência entre advices.
 
+**Identificadores não eram normalizados.** Um evento com `accountId` em maiúsculas era gravado
+naquela grafia, mas a API converte o path para `UUID` antes de consultar — o que sempre produz
+minúsculas. O saldo ficava **inacessível pelas duas grafias**: gravado com sucesso, 404 na
+consulta. `UUID.fromString` ainda aceita formas abreviadas (`1-1-1-1-1`), o que multiplicava as
+grafias possíveis da mesma chave. Agora o domínio guarda sempre a forma canônica.
+
 **Um timestamp no futuro congelava a conta.** A revisão final expôs que a validação só exigia
 `> 0`. Reproduzindo: um evento com timestamp em nanossegundos gravou `updated_at: +58639-01-13` e
 **o evento legítimo seguinte foi rejeitado** — o saldo ficou preso permanentemente, sem erro em

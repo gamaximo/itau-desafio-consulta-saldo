@@ -3,9 +3,12 @@ package br.com.itau.challenge.balance.domain.model
 import br.com.itau.challenge.balance.domain.exception.InvalidTransactionEventException
 import br.com.itau.challenge.balance.fixture.money
 import br.com.itau.challenge.balance.fixture.transaction
+import br.com.itau.challenge.balance.fixture.TRANSACTION_ID
+import br.com.itau.challenge.balance.fixture.TRANSACTION_TIMESTAMP
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class TransactionTest {
@@ -50,5 +53,23 @@ class TransactionTest {
     @Test
     fun `aceita valor zero`() {
         assertEquals("0.00", transaction(amount = money(amount = "0.00")).amount.amount.toPlainString())
+    }
+
+    @Test
+    fun `distingue transações diferentes e reconhece a si mesma`() {
+        val tx = transaction()
+
+        assertEquals(tx, tx)
+        assertNotEquals(tx, transaction(timestamp = TRANSACTION_TIMESTAMP + 1))
+        assertNotEquals(tx, transaction(type = TransactionType.DEBIT))
+        assertNotEquals(tx, transaction(status = TransactionStatus.DECLINED))
+        assertNotEquals<Any?>(tx, "não é uma transação")
+        assertNotEquals<Any?>(tx, null)
+        assertEquals(tx.hashCode(), transaction().hashCode())
+    }
+
+    @Test
+    fun `tem um toString legível para os logs`() {
+        assertTrue(transaction().toString().contains(TRANSACTION_ID))
     }
 }
